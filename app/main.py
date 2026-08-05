@@ -1,13 +1,13 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from typing import List
 
 from app.database import get_db, engine, Base
 from app import models, schemas, search, ai
 
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 
 Base.metadata.create_all(bind=engine)
 
@@ -105,6 +105,47 @@ def ask(payload: schemas.AskRequest, db: Session = Depends(get_db)):
         matched_entry_id=matched_entry_id,
         confidence=confidence,
     )
+
+
+@app.get("/popular")
+def popular_questions(limit: int = 10, db: Session = Depends(get_db)):
+    """
+    Public endpoint: the most-asked questions, ranked by how often each
+    published KB entry has been matched. Powers the 'Most Asked' section
+    on the frontend. Only surfaces already-published FAQ content — never
+    raw user-typed query text — so it's safe to expose without auth.
+    """
+    rows = (
+        db.query(models.UserQuery.matched_entry_id, func.count(models.UserQuery.id).label("ask_count"))
+        .filter(models.UserQuery.matched_entry_id.isnot(None))
+        .group_by(models.UserQuery.matched_entry_id)
+        .order_by(desc("ask_count"))
+        .limit(limit)
+        .all()
+    )
+
+    entry_ids = [r[0] for r in rows]
+    if not entry_ids:
+        return []
+
+    entries = {
+        e.id: e
+        for e in db.query(models.FAQEntry)
+        .filter(models.FAQEntry.id.in_(entry_ids), models.FAQEntry.status == "published")
+        .all()
+    }
+
+    result = []
+    for entry_id, ask_count in rows:
+        entry = entries.get(entry_id)
+        if entry:
+            result.append({
+                "id": entry.id,
+                "question": entry.question_canonical,
+                "answer": entry.answer,
+                "ask_count": ask_count,
+            })
+    return result
 
 
 # ---- Admin routes (no auth yet — add before this is public-facing) ----
