@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from anthropic import Anthropic
 
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
@@ -32,7 +33,7 @@ You will be given (if available) the closest matching entries from BikeHouston's
 knowledge base. Prefer grounding your answer in that material. If nothing relevant is
 provided and you're not confident you can answer accurately and safely, say so honestly.
 
-Respond ONLY with a JSON object, no other text, in this exact shape:
+Respond ONLY with a JSON object, no other text, no markdown code fences, in this exact shape:
 {
   "on_topic": true/false,
   "confident": true/false,
@@ -41,6 +42,15 @@ Respond ONLY with a JSON object, no other text, in this exact shape:
   "needs_human_reason": "short reason, or null"
 }
 """
+
+
+def _extract_json(text: str) -> str:
+    """Strip markdown code fences if the model wraps its JSON in them."""
+    stripped = text.strip()
+    fence_match = re.search(r"```(?:json)?\s*(.*?)\s*```", stripped, re.DOTALL)
+    if fence_match:
+        return fence_match.group(1)
+    return stripped
 
 
 def generate_answer(query: str, kb_context: str = "") -> dict:
@@ -55,9 +65,9 @@ def generate_answer(query: str, kb_context: str = "") -> dict:
         messages=[{"role": "user", "content": user_content}],
     )
 
-    text = response.content[0].text
+    raw_text = response.content[0].text
     try:
-        return json.loads(text)
+        return json.loads(_extract_json(raw_text))
     except json.JSONDecodeError:
         # Fail safe: if the model didn't return clean JSON, treat as low-confidence
         return {
