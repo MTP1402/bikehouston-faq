@@ -150,6 +150,69 @@ def popular_questions(limit: int = 10, db: Session = Depends(get_db)):
 
 # ---- Admin routes (no auth yet — add before this is public-facing) ----
 
+@app.get("/admin/stats")
+def admin_stats(db: Session = Depends(get_db)):
+    """
+    Summary report for an admin: total volume, how confident the matches
+    were, how often we escalated to a human, and what's still waiting for
+    a human answer. Confidence is bucketed from the trigram match_score
+    saved on each query (search.HIGH_CONFIDENCE / MEDIUM_CONFIDENCE), since
+    that's the same threshold /ask itself uses to decide whether to answer
+    directly or hand off.
+    """
+    total = db.query(func.count(models.UserQuery.id)).scalar() or 0
+    escalated = (
+        db.query(func.count(models.UserQuery.id))
+        .filter(models.UserQuery.was_escalated.is_(True))
+        .scalar() or 0
+    )
+
+    high = (
+        db.query(func.count(models.UserQuery.id))
+        .filter(models.UserQuery.match_score >= search.HIGH_CONFIDENCE)
+        .scalar() or 0
+    )
+    medium = (
+        db.query(func.count(models.UserQuery.id))
+        .filter(
+            models.UserQuery.match_score >= search.MEDIUM_CONFIDENCE,
+            models.UserQuery.match_score < search.HIGH_CONFIDENCE,
+        )
+        .scalar() or 0
+    )
+    low = total - high - medium
+
+    reason_rows = (
+        db.query(models.UserQuery.escalation_reason, func.count(models.UserQuery.id))
+        .filter(models.UserQuery.was_escalated.is_(True))
+        .group_by(models.UserQuery.escalation_reason)
+        .order_by(desc(func.count(models.UserQuery.id)))
+        .all()
+    )
+    escalation_reasons = [
+        {"reason": reason or "unspecified", "count": count} for reason, count in reason_rows
+    ]
+
+    open_review_count = (
+        db.query(func.count(models.ReviewQueueItem.id))
+        .filter(models.ReviewQueueItem.status == "open")
+        .scalar() or 0
+    )
+
+    return {
+        "total_questions": total,
+        "escalated_count": escalated,
+        "escalated_pct": round(100 * escalated / total, 1) if total else 0,
+        "confidence_breakdown": {
+            "high": high,
+            "medium": medium,
+            "low": low,
+        },
+        "top_escalation_reasons": escalation_reasons,
+        "open_review_count": open_review_count,
+    }
+
+
 @app.get("/admin/queries")
 def list_queries(limit: int = 50, db: Session = Depends(get_db)):
     rows = (
