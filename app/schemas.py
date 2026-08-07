@@ -38,6 +38,7 @@ class FAQEntryOut(FAQEntryIn):
 class ReviewQueueOut(BaseModel):
     id: int
     faq_entry_id: Optional[int]
+    related_query_id: Optional[int] = None
     reason: str
     old_answer: Optional[str]
     proposed_answer: Optional[str]
