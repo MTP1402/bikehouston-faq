@@ -82,6 +82,7 @@ def ask(payload: schemas.AskRequest, db: Session = Depends(get_db)):
         escalation_reason=escalation_reason,
         ai_answer=answer_text,
         session_id=payload.session_id,
+        asker_email=payload.email,
     )
     db.add(log_entry)
     db.commit()
@@ -104,6 +105,7 @@ def ask(payload: schemas.AskRequest, db: Session = Depends(get_db)):
         escalation_reason=escalation_reason,
         matched_entry_id=matched_entry_id,
         confidence=confidence,
+        query_id=log_entry.id,
     )
 
 
@@ -146,6 +148,34 @@ def popular_questions(limit: int = 10, db: Session = Depends(get_db)):
                 "ask_count": ask_count,
             })
     return result
+
+
+@app.get("/answered", response_model=List[schemas.AnsweredItem])
+def list_answered(limit: int = 20, db: Session = Depends(get_db)):
+    """
+    Public endpoint: questions that were escalated to a human and have
+    since been given a real answer. Lets anyone browse for their question
+    without needing to leave an email or wait for a personal reply.
+    """
+    rows = (
+        db.query(models.ReviewQueueItem, models.UserQuery)
+        .join(models.UserQuery, models.ReviewQueueItem.related_query_id == models.UserQuery.id)
+        .filter(
+            models.ReviewQueueItem.status == "resolved",
+            models.ReviewQueueItem.proposed_answer.isnot(None),
+        )
+        .order_by(desc(models.ReviewQueueItem.resolved_at))
+        .limit(limit)
+        .all()
+    )
+    return [
+        schemas.AnsweredItem(
+            question=query.query_text,
+            answer=item.proposed_answer,
+            resolved_at=item.resolved_at,
+        )
+        for item, query in rows
+    ]
 
 
 # ---- Admin routes (no auth yet — add before this is public-facing) ----
@@ -236,12 +266,21 @@ def list_review_queue(status: str = "open", db: Session = Depends(get_db)):
 
 
 @app.post("/admin/review-queue/{item_id}/resolve")
-def resolve_review_item(item_id: int, resolved_by: str, db: Session = Depends(get_db)):
+def resolve_review_item(item_id: int, payload: schemas.ResolveRequest, db: Session = Depends(get_db)):
     item = db.query(models.ReviewQueueItem).filter(models.ReviewQueueItem.id == item_id).first()
     if not item:
         return {"error": "not found"}
     item.status = "resolved"
-    item.resolved_by = resolved_by
+    item.resolved_by = payload.resolved_by
+    item.resolved_at = func.now()
+    if payload.answer:
+        item.proposed_answer = payload.answer
+        # also update the original logged query so the admin dashboard
+        # shows the real answer instead of the "passing to a human" placeholder
+        if item.related_query_id:
+            related = db.query(models.UserQuery).filter(models.UserQuery.id == item.related_query_id).first()
+            if related:
+                related.ai_answer = payload.answer
     db.commit()
     return {"ok": True}
 
