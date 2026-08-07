@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BikeHouston FAQ — Admin</title>
+<style>
+  :root {
+    --bh-green: #2e7d32;
+    --bh-dark: #1b1b1b;
+    --bh-bg: #f6f7f5;
+    --bh-amber: #c97a24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bh-bg);
+    margin: 0;
+    padding: 24px;
+    color: var(--bh-dark);
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 2px; }
+  .warning {
+    background: #fff4e5;
+    border: 1px solid #f0c987;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    margin-bottom: 24px;
+    color: #7a4e00;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card .num { font-size: 1.7rem; font-weight: 700; color: var(--bh-dark); }
+  .card .label { font-size: 0.8rem; color: #666; margin-top: 4px; }
+  .card.amber .num { color: var(--bh-amber); }
+  section { margin-bottom: 32px; }
+  h2 { font-size: 1.1rem; margin-bottom: 10px; }
+  .empty { color: #888; font-style: italic; font-size: 0.9rem; }
+  .review-item {
+    background: #fffaf3;
+    border: 1px solid #f0c987;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .review-item .q { font-weight: 600; margin-bottom: 4px; }
+  .review-item .meta { font-size: 0.8rem; color: #777; margin-bottom: 8px; }
+  .review-item textarea {
+    width: 100%;
+    min-height: 70px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-family: inherit;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    resize: vertical;
+  }
+  .review-item .row { display: flex; gap: 8px; align-items: center; }
+  .review-item input[type=text] {
+    flex: 1;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 0.85rem;
+  }
+  .review-item button {
+    background: var(--bh-green);
+    color: white;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .review-item button:disabled { opacity: 0.5; cursor: default; }
+  .review-item .hint { font-size: 0.75rem; color: #888; margin-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 10px; font-size: 0.85rem; border-bottom: 1px solid #eee; }
+  th { background: #fafafa; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; color: #666; }
+  tr:last-child td { border-bottom: none; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+  .tag.high { background: #e6f0e7; color: var(--bh-green); }
+  .tag.medium { background: #fff4e5; color: var(--bh-amber); }
+  .tag.low { background: #fde8e8; color: #b3261e; }
+  .tag.yes { background: #fff4e5; color: var(--bh-amber); }
+  .tag.no { background: #eee; color: #666; }
+  .q-row { cursor: pointer; }
+  .q-row:hover { background: #fafafa; }
+  .q-row td:first-child::before { content: "▸ "; color: #999; font-size: 0.75rem; }
+  .q-row.open td:first-child::before { content: "▾ "; }
+  .detail-row td { background: #f7faf7; color: #333; line-height: 1.5; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>BikeHouston FAQ — Admin</h1>
+  <div class="warning">This page has no login yet — don't share this link publicly. Ask Claude to add auth before wider use.</div>
+
+  <div class="cards" id="cards"></div>
+
+  <section>
+    <h2>Needs a human answer</h2>
+    <div id="reviewList"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section>
+    <h2>Recent questions <span style="font-weight:400;color:#888;font-size:0.8rem;">(click a row to see the answer given)</span></h2>
+    <table>
+      <thead>
+        <tr><th>Question</th><th>Confidence</th><th>Escalated</th><th>Asked</th></tr>
+      </thead>
+      <tbody id="queriesBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </section>
+</div>
+
+<script>
+  const API_BASE = "https://web-production-b8927.up.railway.app";
+  let allQueries = [];
+
+  function fmtDate(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
+  function confidenceTag(score) {
+    if (score === null || score === undefined) return '<span class="tag low">low</span>';
+    if (score >= 0.45) return '<span class="tag high">high</span>';
+    if (score >= 0.22) return '<span class="tag medium">medium</span>';
+    return '<span class="tag low">low</span>';
+  }
+
+  async function loadStats() {
+    const res = await fetch(`${API_BASE}/admin/stats`);
+    const s = await res.json();
+    const cards = document.getElementById("cards");
+    cards.innerHTML = `
+      <div class="card">
+        <div class="num">${s.total_questions}</div>
+        <div class="label">Total questions asked</div>
+      </div>
+      <div class="card amber">
+        <div class="num">${s.escalated_count}</div>
+        <div class="label">Escalated to a human (${s.escalated_pct}%)</div>
+      </div>
+      <div class="card">
+        <div class="num">${s.confidence_breakdown.high} / ${s.confidence_breakdown.medium} / ${s.confidence_breakdown.low}</div>
+        <div class="label">High / medium / low confidence</div>
+      </div>
+      <div class="card amber">
+        <div class="num">${s.open_review_count}</div>
+        <div class="label">Still waiting on a human</div>
+      </div>
+    `;
+  }
+
+  async function loadQueries() {
+    const res = await fetch(`${API_BASE}/admin/queries?limit=150`);
+    allQueries = await res.json();
+    const tbody = document.getElementById("queriesBody");
+    if (!allQueries.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty">No questions logged yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = allQueries.map((q, i) => `
+      <tr class="q-row" data-idx="${i}">
+        <td>${q.query_text}</td>
+        <td>${confidenceTag(q.match_score)}</td>
+        <td>${q.was_escalated ? '<span class="tag yes">Yes</span>' : '<span class="tag no">No</span>'}</td>
+        <td>${fmtDate(q.created_at)}</td>
+      </tr>
+      <tr class="detail-row" id="detail-${i}" style="display:none;">
+        <td colspan="4">${(q.ai_answer || "(no answer recorded)").replace(/</g, "&lt;")}</td>
+      </tr>
+    `).join("");
+
+    document.querySelectorAll(".q-row").forEach((row) => {
+      row.addEventListener("click", () => {
+        const idx = row.getAttribute("data-idx");
+        const detail = document.getElementById("detail-" + idx);
+        const isOpen = detail.style.display !== "none";
+        detail.style.display = isOpen ? "none" : "table-row";
+        row.classList.toggle("open", !isOpen);
+      });
+    });
+  }
+
+  async function loadReviewQueue() {
+    const res = await fetch(`${API_BASE}/admin/review-queue?status=open`);
+    const items = await res.json();
+    const list = document.getElementById("reviewList");
+    if (!items.length) {
+      list.innerHTML = '<div class="empty">Nothing waiting — all caught up.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    items.forEach((item) => {
+      const match = allQueries.find((q) => q.id === item.related_query_id);
+      const questionText = match ? match.query_text : "(question text not available)";
+      const div = document.createElement("div");
+      div.className = "review-item";
+      div.innerHTML = `
+        <div class="q">${questionText}</div>
+        <div class="meta">Reason: ${item.reason} · Flagged ${fmtDate(item.flagged_at)}</div>
+        <div class="hint">Type the real answer below. It'll replace the placeholder and (once you add it to the FAQ separately) help future askers too.</div>
+        <textarea placeholder="Write the answer here…"></textarea>
+        <div class="row">
+          <input type="text" placeholder="Your name" />
+          <button type="button">Mark resolved</button>
+        </div>
+      `;
+      const textarea = div.querySelector("textarea");
+      const nameInput = div.querySelector('input[type="text"]');
+      const btn = div.querySelector("button");
+      btn.addEventListener("click", async () => {
+        const name = nameInput.value.trim();
+        if (!name) { nameInput.focus(); return; }
+        btn.disabled = true;
+        btn.textContent = "Resolving…";
+        await fetch(`${API_BASE}/admin/review-queue/${item.id}/resolve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ resolved_by: name, answer: textarea.value.trim() || null }),
+        });
+        div.remove();
+      });
+      list.appendChild(div);
+    });
+  }
+
+  (async function init() {
+    await loadQueries();
+    await Promise.all([loadStats(), loadReviewQueue()]);
+  })();
+</script>
+</body>
+</html>
