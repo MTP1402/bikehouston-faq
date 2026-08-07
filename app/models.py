@@ -47,6 +47,8 @@ class UserQuery(Base):
     matched_entry = relationship("FAQEntry")
 
 
+    asker_email = Column(String(255), nullable=True)  # optional, for a personal follow-up
+
 class ReviewQueueItem(Base):
     __tablename__ = "review_queue"
 
