@@ -49,7 +49,7 @@
   .item-q:hover { background: #fafafa; }
   .item-q .qtext { font-weight: 600; }
   .item-q .count { font-size: 0.75rem; color: #888; white-space: nowrap; }
-  .item-a {
+  .item-a { background: #eaf5ea;
     display: none;
     padding: 0 16px 16px;
     line-height: 1.5;
@@ -57,7 +57,7 @@
     border-top: 1px solid #eee;
     padding-top: 12px;
   }
-  .item.open .item-a { display: block; }
+  .item.open .item-a { background: #eaf5ea; display: block; }
   .feedback { margin-top: 12px; display: flex; gap: 8px; align-items: center; }
   .feedback button {
     background: white;
@@ -72,6 +72,27 @@
   .feedback .counts { font-size: 0.8rem; color: #888; }
   .empty { color: #888; font-style: italic; padding: 20px; text-align: center; }
   .footnote { font-size: 0.95rem; color: #555; margin-top: 20px; line-height: 1.5; }
+
+  .sortbar { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 14px 0; }
+  .sortbar button {
+    background: white; border: 1px solid #d7e5d9; color: #555;
+    border-radius: 999px; padding: 6px 14px; font-size: 0.84rem; cursor: pointer;
+  }
+  .sortbar button:hover { border-color: var(--bh-green); color: var(--bh-green); }
+  .sortbar button.active {
+    background: var(--bh-green); border-color: var(--bh-green); color: white; font-weight: 600;
+  }
+
+  /* Soft fade at the bottom of a long list, so it reads as "there's more
+     below" without adding a control the browser scrollbar already provides. */
+  .list-wrap { position: relative; }
+  .list-wrap::after {
+    content: "";
+    position: sticky; display: block; bottom: 0;
+    height: 44px; margin-top: -44px;
+    background: linear-gradient(to bottom, rgba(246,247,245,0), rgba(246,247,245,0.95));
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
@@ -82,7 +103,13 @@
 
   <input type="search" id="searchBox" placeholder="Search questions…" />
 
-  <div id="list"><div class="empty">Loading…</div></div>
+  <div class="sortbar" id="sortbar">
+    <button type="button" data-sort="asked" class="active">Most asked</button>
+    <button type="button" data-sort="helpful">Most helpful</button>
+    <button type="button" data-sort="newest">Newest</button>
+  </div>
+
+  <div class="list-wrap"><div id="list"><div class="empty">Loading…</div></div></div>
 
   <p class="footnote">Answers are AI-generated and may contain errors &mdash; please verify anything safety- or law-related. Questions we can't confidently answer are routed to the BikeHouston team for a human response.</p>
 </div>
@@ -134,15 +161,44 @@
     });
   }
 
-  searchBox.addEventListener("input", () => {
+  let currentSort = "asked";
+
+  function sortItems(items) {
+    const copy = items.slice();
+    if (currentSort === "helpful") {
+      copy.sort((a, b) => (b.helpful_count || 0) - (a.helpful_count || 0) || (b.ask_count || 0) - (a.ask_count || 0));
+    } else if (currentSort === "newest") {
+      copy.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    } else {
+      copy.sort((a, b) => (b.ask_count || 0) - (a.ask_count || 0));
+    }
+    return copy;
+  }
+
+  function applyView() {
     const term = searchBox.value.trim().toLowerCase();
-    if (!term) { render(allItems); return; }
-    render(allItems.filter((item) => item.question.toLowerCase().includes(term) || item.answer.toLowerCase().includes(term)));
+    let items = allItems;
+    if (term) {
+      items = items.filter((item) =>
+        item.question.toLowerCase().includes(term) || item.answer.toLowerCase().includes(term));
+    }
+    render(sortItems(items));
+  }
+
+  searchBox.addEventListener("input", applyView);
+
+  document.querySelectorAll("#sortbar button").forEach((b) => {
+    b.addEventListener("click", () => {
+      currentSort = b.getAttribute("data-sort");
+      document.querySelectorAll("#sortbar button").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      applyView();
+    });
   });
 
   fetch(`${API_BASE}/browse`)
     .then((res) => res.json())
-    .then((items) => { allItems = items; render(items); })
+    .then((items) => { allItems = items; applyView(); })
         .catch(() => { list.innerHTML = "<div class=\"empty\">Could not load questions right now.</div>"; });
 </script>
 </body>

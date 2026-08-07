@@ -47,6 +47,12 @@ class UserQuery(Base):
     session_id = Column(String(64), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    # Customer-satisfaction signal: was this specific answer useful to the
+    # person who asked? Every answer is votable, KB-sourced or AI-generated.
+    # NOTE: requires a manual ALTER TABLE against the live Railway Postgres.
+    helpful_count = Column(Integer, default=0)
+    unhelpful_count = Column(Integer, default=0)
+
     matched_entry = relationship("FAQEntry")
 
 

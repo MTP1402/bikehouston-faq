@@ -9,6 +9,7 @@
     --bh-green: #2e7d32;
     --bh-dark: #1b1b1b;
     --bh-bg: #f6f7f5;
+    --bh-panel: #eaf5ea;
   }
   * { box-sizing: border-box; }
   body {
@@ -21,13 +22,14 @@
   .wrap { max-width: 640px; margin: 0 auto; }
   h1 { font-size: 1.4rem; margin-bottom: 4px; }
   p.sub { color: #555; margin-top: 0; margin-bottom: 20px; }
-  form { display: flex; gap: 8px; margin-bottom: 16px; }
+  form { display: flex; gap: 8px; margin-bottom: 14px; }
   input[type=text] {
     flex: 1;
     padding: 12px 14px;
     border-radius: 8px;
     border: 1px solid #ccc;
     font-size: 1rem;
+    min-width: 0;
   }
   button {
     background: var(--bh-green);
@@ -39,72 +41,68 @@
     cursor: pointer;
   }
   button:disabled { opacity: 0.6; cursor: default; }
-  .popular {
-    margin-bottom: 20px;
-  }
+  .browse-link { display: inline-block; margin-bottom: 18px; color: var(--bh-green); font-size: 0.92rem; text-decoration: none; font-weight: 600; }
+  .browse-link:hover { text-decoration: underline; }
+
+  .popular { margin-bottom: 20px; }
   .popular-label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: #666;
-    margin-bottom: 8px;
+    font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.03em; color: #666; margin-bottom: 8px;
   }
   .popular-chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
-    background: white;
-    border: 1px solid #d7e5d9;
-    color: var(--bh-green);
-    border-radius: 999px;
-    padding: 7px 14px;
-    font-size: 0.88rem;
-    cursor: pointer;
-    text-align: left;
+    background: white; border: 1px solid #d7e5d9; color: var(--bh-green);
+    border-radius: 999px; padding: 7px 14px; font-size: 0.88rem;
+    cursor: pointer; text-align: left;
   }
-  .chip:hover { background: #eaf5ea; border-color: var(--bh-green); }
-  #chat {
-    background: white;
-    border-radius: 12px;
-    border: 1px solid #e0e0e0;
-    padding: 16px;
-    min-height: 320px;
-    max-height: 55vh;
-    overflow-y: auto;
-    margin-bottom: 12px;
+  .chip:hover { background: var(--bh-panel); border-color: var(--bh-green); }
+
+  #answer {
+    background: white; border-radius: 12px; border: 1px solid #e0e0e0;
+    padding: 18px; min-height: 140px; margin-bottom: 12px;
   }
-  .msg { margin-bottom: 14px; line-height: 1.45; }
-  .msg .role { font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 2px; }
-  .msg.user .role { color: #666; }
-  .msg.bot .role { color: var(--bh-green); }
-  .msg .bubble { padding: 10px 14px; border-radius: 10px; display: inline-block; max-width: 90%; }
-  .msg.user .bubble { background: #eee; }
-  .msg.bot .bubble { background: #eaf5ea; }
-  .msg.bot .bubble.escalated { background: #fff4e5; border: 1px solid #f0c987; }
-  .footnote { font-size: 0.95rem; color: #555; margin-top: 14px; line-height: 1.5; }
-  .browse-link { display: inline-block; margin-bottom: 16px; color: var(--bh-green); font-size: 0.92rem; text-decoration: none; font-weight: 600; }
-  .browse-link:hover { text-decoration: underline; }
+  .placeholder { color: #999; font-size: 0.95rem; line-height: 1.5; }
+  .asked-label {
+    font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.03em; color: #888; margin-bottom: 4px;
+  }
+  .asked-q { font-weight: 600; font-size: 1.02rem; margin-bottom: 14px; line-height: 1.4; }
+  .answer-body {
+    background: var(--bh-panel); border-radius: 10px; padding: 14px 16px;
+    line-height: 1.55; white-space: pre-wrap;
+  }
+  .answer-body.escalated { background: #fff4e5; border: 1px solid #f0c987; }
+  .thinking { color: #888; font-style: italic; }
+
+  .vote-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 14px; padding-top: 12px; border-top: 1px solid #eee;
+    flex-wrap: wrap;
+  }
+  .vote-row .prompt { font-size: 0.86rem; color: #666; margin-right: 2px; }
+  .vote-btn {
+    background: white; border: 1px solid #ccc; color: #444;
+    border-radius: 999px; padding: 6px 14px; font-size: 0.86rem; cursor: pointer;
+  }
+  .vote-btn:hover { border-color: var(--bh-green); color: var(--bh-green); }
+  .vote-btn:disabled { opacity: 0.5; }
+  .vote-thanks { font-size: 0.86rem; color: var(--bh-green); font-weight: 600; }
+
   .email-capture {
-    margin-top: 10px;
-    padding: 12px 14px;
-    background: #fffaf2;
-    border: 1px solid #f0c987;
-    border-radius: 10px;
-    font-size: 0.9rem;
-    color: #5a4a2f;
+    margin-top: 12px; padding: 12px 14px; background: #fffaf2;
+    border: 1px solid #f0c987; border-radius: 10px; font-size: 0.9rem; color: #5a4a2f;
   }
   .email-capture p { margin: 0 0 8px 0; line-height: 1.45; }
   .email-capture .row { display: flex; gap: 8px; }
   .email-capture input {
-    flex: 1;
-    padding: 9px 11px;
-    border-radius: 7px;
-    border: 1px solid #ccc;
-    font-size: 0.92rem;
-    min-width: 0;
+    flex: 1; padding: 9px 11px; border-radius: 7px;
+    border: 1px solid #ccc; font-size: 0.92rem; min-width: 0;
   }
   .email-capture button { padding: 0 16px; font-size: 0.9rem; border-radius: 7px; }
   .email-capture .done { color: var(--bh-green); font-weight: 600; margin: 0; }
   .email-capture .err { color: #b3261e; font-size: 0.85rem; margin: 6px 0 0 0; display: none; }
+
+  .footnote { font-size: 0.95rem; color: #555; margin-top: 14px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -124,15 +122,16 @@
     <div class="popular-chips" id="popularChips"></div>
   </div>
 
-  <div id="chat"></div>
+  <div id="answer"><div class="placeholder">Ask a question above, or tap one of the most-asked questions, and the answer will appear here.</div></div>
 
   <p class="footnote">Answers are AI-generated and may contain errors &mdash; please verify anything safety- or law-related. Questions we can't confidently answer are routed to the BikeHouston team for a human response.</p>
 </div>
 
 <script>
   const API_BASE = "https://web-production-b8927.up.railway.app";
+  const POPULAR_LIMIT = 6;
 
-  const chat = document.getElementById("chat");
+  const panel = document.getElementById("answer");
   const form = document.getElementById("askForm");
   const input = document.getElementById("queryInput");
   const btn = document.getElementById("askBtn");
@@ -141,48 +140,87 @@
 
   const sessionId = Math.random().toString(36).slice(2);
 
-  function addMessage(role, text, escalated = false) {
-    const div = document.createElement("div");
-    div.className = "msg " + role;
-    div.innerHTML = `
-      <div class="role">${role === "user" ? "You" : "BikeHouston"}</div>
-      <div class="bubble${escalated ? " escalated" : ""}">${text}</div>
-    `;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
-    return div;
+  function esc(t) {
+    return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
-  // When a question gets escalated, offer the asker a way to be emailed back.
-  // Nothing is sent automatically — a human works the admin review queue and
+  // One question and answer visible at a time. Asking again — typed or by
+  // tapping a chip — replaces what's here rather than appending to it.
+  function showThinking(question) {
+    panel.innerHTML =
+      '<div class="asked-label">You asked</div>' +
+      '<div class="asked-q">' + esc(question) + '</div>' +
+      '<div class="answer-body thinking">Looking that up…</div>';
+  }
+
+  function showAnswer(question, data) {
+    const escalated = !!data.escalated;
+    panel.innerHTML =
+      '<div class="asked-label">You asked</div>' +
+      '<div class="asked-q">' + esc(question) + '</div>' +
+      '<div class="answer-body' + (escalated ? ' escalated' : '') + '">' + esc(data.answer) + '</div>';
+
+    // Escalations aren't answers yet, so there's nothing to rate — they get
+    // the follow-up email offer instead.
+    if (escalated) {
+      if (data.query_id) addEmailCapture(data.query_id);
+      return;
+    }
+    if (data.query_id) addVoteRow(data.query_id);
+  }
+
+  function addVoteRow(queryId) {
+    const row = document.createElement("div");
+    row.className = "vote-row";
+    row.innerHTML =
+      '<span class="prompt">Was this helpful?</span>' +
+      '<button type="button" class="vote-btn" data-helpful="true">👍 Yes</button>' +
+      '<button type="button" class="vote-btn" data-helpful="false">👎 No</button>';
+
+    row.querySelectorAll(".vote-btn").forEach((b) => {
+      b.addEventListener("click", async () => {
+        const helpful = b.getAttribute("data-helpful");
+        row.querySelectorAll(".vote-btn").forEach((x) => { x.disabled = true; });
+        try {
+          await fetch(API_BASE + "/query/" + queryId + "/feedback?helpful=" + helpful, { method: "POST" });
+          row.innerHTML = '<span class="vote-thanks">Thanks — that helps us improve.</span>';
+        } catch (e) {
+          row.querySelectorAll(".vote-btn").forEach((x) => { x.disabled = false; });
+        }
+      });
+    });
+    panel.appendChild(row);
+  }
+
+  // Nothing is emailed automatically — a human works the review queue and
   // replies from their own mail client.
-  function addEmailCapture(afterEl, queryId) {
+  function addEmailCapture(queryId) {
     const box = document.createElement("div");
     box.className = "email-capture";
     box.innerHTML = [
-      '<p>If you\'d like us to email you the answer, leave your address below. ',
-      'Otherwise, feel free to check back here later.</p>',
+      "<p>If you'd like us to email you the answer, leave your address below. ",
+      "Otherwise, feel free to check back here later.</p>",
       '<div class="row">',
       '<input type="email" placeholder="you@example.com" autocomplete="email" />',
       '<button type="button">Send it to me</button>',
-      '</div>',
+      "</div>",
       '<p class="err"></p>'
     ].join("");
 
-    const input = box.querySelector("input");
-    const btn = box.querySelector("button");
+    const emailInput = box.querySelector("input");
+    const sendBtn = box.querySelector("button");
     const err = box.querySelector(".err");
 
     async function submit() {
-      const email = input.value.trim();
+      const email = emailInput.value.trim();
       if (!email || email.indexOf("@") === -1) {
         err.textContent = "Please enter a valid email address.";
         err.style.display = "block";
         return;
       }
       err.style.display = "none";
-      btn.disabled = true;
-      btn.textContent = "Saving…";
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Saving…";
       try {
         const res = await fetch(API_BASE + "/query/" + queryId + "/email", {
           method: "POST",
@@ -190,39 +228,36 @@
           body: JSON.stringify({ email: email }),
         });
         if (!res.ok) throw new Error("failed");
-        box.innerHTML = '<p class="done">Thanks — someone from BikeHouston will email you at ' +
-          email.replace(/</g, "&lt;") + '.</p>';
+        box.innerHTML = '<p class="done">Thanks — someone from BikeHouston will email you at ' + esc(email) + '.</p>';
       } catch (e) {
-        btn.disabled = false;
-        btn.textContent = "Send it to me";
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send it to me";
         err.textContent = "Could not save that just now — please try again.";
         err.style.display = "block";
       }
     }
 
-    btn.addEventListener("click", submit);
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-
-    afterEl.appendChild(box);
-    chat.scrollTop = chat.scrollHeight;
+    sendBtn.addEventListener("click", submit);
+    emailInput.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    panel.appendChild(box);
   }
 
   async function askQuestion(query) {
-    addMessage("user", query);
+    showThinking(query);
     btn.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/ask`, {
+      const res = await fetch(API_BASE + "/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, session_id: sessionId }),
+        body: JSON.stringify({ query: query, session_id: sessionId }),
       });
       const data = await res.json();
-      const botEl = addMessage("bot", data.answer, data.escalated);
-      if (data.escalated && data.query_id) {
-        addEmailCapture(botEl, data.query_id);
-      }
+      showAnswer(query, data);
     } catch (err) {
-      addMessage("bot", "Something went wrong reaching the server — please try again in a moment.", true);
+      showAnswer(query, {
+        answer: "Something went wrong reaching the server — please try again in a moment.",
+        escalated: true,
+      });
     } finally {
       btn.disabled = false;
     }
@@ -236,13 +271,12 @@
     askQuestion(query);
   });
 
-  // Load the most-asked questions and render as clickable chips
-  fetch(`${API_BASE}/popular`)
+  fetch(API_BASE + "/popular?limit=" + POPULAR_LIMIT)
     .then((res) => res.json())
     .then((items) => {
       if (!Array.isArray(items) || items.length === 0) return;
       popularChips.innerHTML = "";
-      items.forEach((item) => {
+      items.slice(0, POPULAR_LIMIT).forEach((item) => {
         const chip = document.createElement("button");
         chip.type = "button";
         chip.className = "chip";

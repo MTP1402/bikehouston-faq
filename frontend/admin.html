@@ -176,9 +176,9 @@
     <h2>Recent questions <span style="font-weight:400;color:#888;font-size:0.8rem;">(click a row to see the answer given)</span></h2>
     <table>
       <thead>
-        <tr><th>Question</th><th>Confidence</th><th>Escalated</th><th>Asked</th><th></th></tr>
+        <tr><th>Question</th><th>Confidence</th><th>Escalated</th><th>Votes</th><th>Asked</th><th></th></tr>
       </thead>
-      <tbody id="queriesBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      <tbody id="queriesBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
     </table>
   </section>
 </div>
@@ -225,6 +225,16 @@
     return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
 
+  function voteCell(q) {
+    const up = q.helpful_count || 0;
+    const down = q.unhelpful_count || 0;
+    if (!up && !down) return '<span style="color:#bbb;font-size:0.8rem;">—</span>';
+    const parts = [];
+    if (up) parts.push('<span style="color:#2e7d32;font-weight:600;">👍 ' + up + '</span>');
+    if (down) parts.push('<span style="color:#b3261e;font-weight:600;">👎 ' + down + '</span>');
+    return '<span style="font-size:0.82rem;">' + parts.join(" ") + '</span>';
+  }
+
   function confidenceTag(score) {
     if (score === null || score === undefined) return '<span class="tag low">low</span>';
     if (score >= 0.45) return '<span class="tag high">high</span>';
@@ -253,6 +263,10 @@
         <div class="num">${s.open_review_count}</div>
         <div class="label">Still waiting on a human</div>
       </div>
+      <div class="card">
+        <div class="num">${s.satisfaction_pct === null || s.satisfaction_pct === undefined ? "—" : s.satisfaction_pct + "%"}</div>
+        <div class="label">Found the answer helpful (${s.total_votes || 0} vote${s.total_votes === 1 ? "" : "s"})</div>
+      </div>
     `;
   }
 
@@ -261,7 +275,7 @@
     allQueries = await res.json();
     const tbody = document.getElementById("queriesBody");
     if (!allQueries.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty">No questions logged yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No questions logged yet.</td></tr>';
       return;
     }
     tbody.innerHTML = allQueries.map((q, i) => `
@@ -269,13 +283,14 @@
         <td>${q.query_text}</td>
         <td>${confidenceTag(q.match_score)}</td>
         <td>${q.was_escalated ? '<span class="tag yes">Yes</span>' : '<span class="tag no">No</span>'}</td>
+        <td>${voteCell(q)}</td>
         <td>${fmtDate(q.created_at)}</td>
         <td>${(!q.was_escalated && q.ai_answer && !q.matched_entry_id)
               ? `<button class="btn-sm promote" data-qid="${q.id}">Promote</button>`
               : (q.matched_entry_id ? '<span style="font-size:0.75rem;color:#999;">in KB</span>' : "")}</td>
       </tr>
       <tr class="detail-row" id="detail-${i}" style="display:none;">
-        <td colspan="5">${(q.ai_answer || "(no answer recorded)").replace(/</g, "&lt;")}</td>
+        <td colspan="6">${(q.ai_answer || "(no answer recorded)").replace(/</g, "&lt;")}</td>
       </tr>
     `).join("");
 

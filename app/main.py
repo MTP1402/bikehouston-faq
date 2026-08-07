@@ -150,6 +150,25 @@ def attach_email(query_id: int, payload: schemas.EmailRequest, db: Session = Dep
     return {"ok": True}
 
 
+@app.post("/query/{query_id}/feedback")
+def query_feedback(query_id: int, helpful: bool, db: Session = Depends(get_db)):
+    """
+    Public endpoint: thumbs up/down on the answer someone actually received.
+    Votes attach to the logged query rather than the KB entry, so freshly
+    AI-generated answers are votable too — that's the whole point, since an
+    unhelpful vote on an uncurated answer is the most useful signal we get.
+    """
+    q = db.query(models.UserQuery).filter(models.UserQuery.id == query_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="not found")
+    if helpful:
+        q.helpful_count = (q.helpful_count or 0) + 1
+    else:
+        q.unhelpful_count = (q.unhelpful_count or 0) + 1
+    db.commit()
+    return {"helpful_count": q.helpful_count, "unhelpful_count": q.unhelpful_count}
+
+
 @app.get("/popular")
 def popular_questions(limit: int = 10, db: Session = Depends(get_db)):
     """
@@ -248,6 +267,7 @@ def browse_faq(search: str = "", limit: int = 200, db: Session = Depends(get_db)
             "ask_count": ask_counts.get(e.id, 0),
             "helpful_count": e.helpful_count or 0,
             "unhelpful_count": e.unhelpful_count or 0,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
         }
         for e in entries
     ]
@@ -320,7 +340,18 @@ def admin_stats(db: Session = Depends(get_db)):
         .scalar() or 0
     )
 
+    # Customer satisfaction: of the people who bothered to vote, what share
+    # said the answer helped? Deliberately counts votes, not questions —
+    # most people never vote, and that's fine.
+    helpful_votes = db.query(func.coalesce(func.sum(models.UserQuery.helpful_count), 0)).scalar() or 0
+    unhelpful_votes = db.query(func.coalesce(func.sum(models.UserQuery.unhelpful_count), 0)).scalar() or 0
+    total_votes = helpful_votes + unhelpful_votes
+
     return {
+        "helpful_votes": helpful_votes,
+        "unhelpful_votes": unhelpful_votes,
+        "total_votes": total_votes,
+        "satisfaction_pct": round(100 * helpful_votes / total_votes, 1) if total_votes else None,
         "total_questions": total,
         "escalated_count": escalated,
         "escalated_pct": round(100 * escalated / total, 1) if total else 0,
@@ -422,6 +453,7 @@ def admin_flagged(db: Session = Depends(get_db)):
             "category": e.category,
             "helpful_count": e.helpful_count or 0,
             "unhelpful_count": e.unhelpful_count or 0,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
         }
         for e in entries
     ]
