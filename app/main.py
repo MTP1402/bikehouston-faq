@@ -178,6 +178,56 @@ def list_answered(limit: int = 20, db: Session = Depends(get_db)):
     ]
 
 
+@app.get("/browse")
+def browse_faq(search: str = "", limit: int = 200, db: Session = Depends(get_db)):
+    """
+    Public endpoint: every published FAQ entry, ranked by how often it's
+    been asked (most first), with an optional search filter. Powers the
+    'browse previous questions' page.
+    """
+    ask_counts = dict(
+        db.query(models.UserQuery.matched_entry_id, func.count(models.UserQuery.id))
+        .filter(models.UserQuery.matched_entry_id.isnot(None))
+        .group_by(models.UserQuery.matched_entry_id)
+        .all()
+    )
+
+    query = db.query(models.FAQEntry).filter(models.FAQEntry.status == "published")
+    if search:
+        like = f"%{search}%"
+        query = query.filter(models.FAQEntry.question_canonical.ilike(like))
+
+    entries = query.all()
+    result = [
+        {
+            "id": e.id,
+            "question": e.question_canonical,
+            "answer": e.answer,
+            "category": e.category,
+            "ask_count": ask_counts.get(e.id, 0),
+            "helpful_count": e.helpful_count or 0,
+            "unhelpful_count": e.unhelpful_count or 0,
+        }
+        for e in entries
+    ]
+    result.sort(key=lambda r: r["ask_count"], reverse=True)
+    return result[:limit]
+
+
+@app.post("/faq/{entry_id}/feedback")
+def faq_feedback(entry_id: int, helpful: bool, db: Session = Depends(get_db)):
+    """Public endpoint: thumbs up/down on a published FAQ answer."""
+    entry = db.query(models.FAQEntry).filter(models.FAQEntry.id == entry_id).first()
+    if not entry:
+        return {"error": "not found"}
+    if helpful:
+        entry.helpful_count = (entry.helpful_count or 0) + 1
+    else:
+        entry.unhelpful_count = (entry.unhelpful_count or 0) + 1
+    db.commit()
+    return {"helpful_count": entry.helpful_count, "unhelpful_count": entry.unhelpful_count}
+
+
 # ---- Admin routes (no auth yet — add before this is public-facing) ----
 
 @app.get("/admin/stats")
