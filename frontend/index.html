@@ -81,6 +81,30 @@
   .msg.bot .bubble { background: #eaf5ea; }
   .msg.bot .bubble.escalated { background: #fff4e5; border: 1px solid #f0c987; }
   .footnote { font-size: 0.95rem; color: #555; margin-top: 14px; line-height: 1.5; }
+  .browse-link { display: inline-block; margin-bottom: 16px; color: var(--bh-green); font-size: 0.92rem; text-decoration: none; font-weight: 600; }
+  .browse-link:hover { text-decoration: underline; }
+  .email-capture {
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: #fffaf2;
+    border: 1px solid #f0c987;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    color: #5a4a2f;
+  }
+  .email-capture p { margin: 0 0 8px 0; line-height: 1.45; }
+  .email-capture .row { display: flex; gap: 8px; }
+  .email-capture input {
+    flex: 1;
+    padding: 9px 11px;
+    border-radius: 7px;
+    border: 1px solid #ccc;
+    font-size: 0.92rem;
+    min-width: 0;
+  }
+  .email-capture button { padding: 0 16px; font-size: 0.9rem; border-radius: 7px; }
+  .email-capture .done { color: var(--bh-green); font-weight: 600; margin: 0; }
+  .email-capture .err { color: #b3261e; font-size: 0.85rem; margin: 6px 0 0 0; display: none; }
 </style>
 </head>
 <body>
@@ -93,6 +117,8 @@
     <button type="submit" id="askBtn">Ask</button>
   </form>
 
+  <a class="browse-link" href="browse.html">Browse all previous questions and answers →</a>
+
   <div class="popular" id="popularWrap" style="display:none;">
     <div class="popular-label">Most asked questions</div>
     <div class="popular-chips" id="popularChips"></div>
@@ -100,7 +126,7 @@
 
   <div id="chat"></div>
 
-  <p class="footnote">Answers are AI-assisted and reviewed against BikeHouston's records. Questions we can't confidently answer are sent to our team.</p>
+  <p class="footnote">Answers are AI-generated and may contain errors &mdash; please verify anything safety- or law-related. Questions we can't confidently answer are routed to the BikeHouston team for a human response.</p>
 </div>
 
 <script>
@@ -124,6 +150,61 @@
     `;
     chat.appendChild(div);
     chat.scrollTop = chat.scrollHeight;
+    return div;
+  }
+
+  // When a question gets escalated, offer the asker a way to be emailed back.
+  // Nothing is sent automatically — a human works the admin review queue and
+  // replies from their own mail client.
+  function addEmailCapture(afterEl, queryId) {
+    const box = document.createElement("div");
+    box.className = "email-capture";
+    box.innerHTML = [
+      '<p>If you\'d like us to email you the answer, leave your address below. ',
+      'Otherwise, feel free to check back here later.</p>',
+      '<div class="row">',
+      '<input type="email" placeholder="you@example.com" autocomplete="email" />',
+      '<button type="button">Send it to me</button>',
+      '</div>',
+      '<p class="err"></p>'
+    ].join("");
+
+    const input = box.querySelector("input");
+    const btn = box.querySelector("button");
+    const err = box.querySelector(".err");
+
+    async function submit() {
+      const email = input.value.trim();
+      if (!email || email.indexOf("@") === -1) {
+        err.textContent = "Please enter a valid email address.";
+        err.style.display = "block";
+        return;
+      }
+      err.style.display = "none";
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        const res = await fetch(API_BASE + "/query/" + queryId + "/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email }),
+        });
+        if (!res.ok) throw new Error("failed");
+        box.innerHTML = '<p class="done">Thanks — someone from BikeHouston will email you at ' +
+          email.replace(/</g, "&lt;") + '.</p>';
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Send it to me";
+        err.textContent = "Could not save that just now — please try again.";
+        err.style.display = "block";
+      }
+    }
+
+    btn.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+
+    afterEl.appendChild(box);
+    chat.scrollTop = chat.scrollHeight;
   }
 
   async function askQuestion(query) {
@@ -136,7 +217,10 @@
         body: JSON.stringify({ query, session_id: sessionId }),
       });
       const data = await res.json();
-      addMessage("bot", data.answer, data.escalated);
+      const botEl = addMessage("bot", data.answer, data.escalated);
+      if (data.escalated && data.query_id) {
+        addEmailCapture(botEl, data.query_id);
+      }
     } catch (err) {
       addMessage("bot", "Something went wrong reaching the server — please try again in a moment.", true);
     } finally {

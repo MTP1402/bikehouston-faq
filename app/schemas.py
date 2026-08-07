@@ -47,11 +47,20 @@ class ReviewQueueOut(BaseModel):
     source_diff_notes: Optional[str]
     status: str
     flagged_at: datetime
+    resolved_by: Optional[str] = None
+    reply_sent_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 
 class ResolveRequest(BaseModel):
     resolved_by: str
     answer: Optional[str] = None  # the real answer, if the admin is writing one now
+
+
+class EmailRequest(BaseModel):
+    email: str
 
 
 class AnsweredItem(BaseModel):

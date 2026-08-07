@@ -105,13 +105,60 @@
   .q-row td:first-child::before { content: "▸ "; color: #999; font-size: 0.75rem; }
   .q-row.open td:first-child::before { content: "▾ "; }
   .detail-row td { background: #f7faf7; color: #333; line-height: 1.5; white-space: pre-wrap; }
+
+  /* password gate */
+  #gate {
+    position: fixed; inset: 0; background: #f6f7f5;
+    display: flex; align-items: center; justify-content: center; z-index: 50;
+  }
+  #gate .box {
+    background: white; border: 1px solid #e0e0e0; border-radius: 12px;
+    padding: 28px; width: 100%; max-width: 380px;
+  }
+  #gate h2 { margin: 0 0 6px 0; font-size: 1.1rem; }
+  #gate p { margin: 0 0 16px 0; color: #666; font-size: 0.88rem; line-height: 1.45; }
+  #gate input { width: 100%; padding: 11px 13px; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; margin-bottom: 10px; }
+  #gate button { width: 100%; padding: 11px 0; }
+  #gate .err { color: #b3261e; font-size: 0.85rem; margin-top: 10px; display: none; }
+  #main { display: none; }
+
+  .btn-sm {
+    background: white; border: 1px solid #ccc; color: #444;
+    border-radius: 6px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer;
+  }
+  .btn-sm:hover { border-color: var(--bh-green); color: var(--bh-green); }
+  .btn-sm:disabled { opacity: 0.55; cursor: default; }
+  .btn-sm.promoted { background: #e6f0e7; border-color: var(--bh-green); color: var(--bh-green); }
+
+  .email-line {
+    background: #fffaf2; border: 1px solid #f0c987; border-radius: 7px;
+    padding: 8px 10px; margin-bottom: 10px; font-size: 0.85rem;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .email-line code { font-size: 0.88rem; color: #5a4a2f; }
+  .no-email { font-size: 0.82rem; color: #888; margin-bottom: 10px; }
+  .sent-badge { background: #e6f0e7; color: var(--bh-green); border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; font-weight: 600; }
+  .flag-item { border: 1px solid #f3c2c2; background: #fffafa; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .flag-item .q { font-weight: 600; margin-bottom: 4px; }
+  .flag-item .votes { font-size: 0.8rem; color: #b3261e; margin-bottom: 8px; }
+  .flag-item .a { font-size: 0.9rem; color: #444; line-height: 1.5; white-space: pre-wrap; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div id="gate">
+  <div class="box">
+    <h2>BikeHouston FAQ — Admin</h2>
+    <p>Enter the shared admin password. (Single shared password, not per-user accounts — see the handoff notes.)</p>
+    <input type="password" id="gatePw" placeholder="Admin password" autocomplete="current-password" />
+    <button id="gateBtn">Unlock</button>
+    <div class="err" id="gateErr"></div>
+  </div>
+</div>
+
+<div class="wrap" id="main">
   <h1>BikeHouston FAQ — Admin</h1>
   <div class="links"><a href="index.html">Ask BikeHouston</a><a href="browse.html">Browse questions</a></div>
-  <div class="warning">This page has no login yet — don't share this link publicly. Ask Claude to add auth before wider use.</div>
+  <div class="warning">Protected by a single shared password. Anyone with that password has full read/write access to the knowledge base — per-user accounts are deliberately left for whoever takes this over.</div>
 
   <div class="cards" id="cards"></div>
 
@@ -121,12 +168,17 @@
   </section>
 
   <section>
+    <h2>Flagged by readers <span style="font-weight:400;color:#888;font-size:0.8rem;">(a thumbs-down is the flag)</span></h2>
+    <div id="flaggedList"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section>
     <h2>Recent questions <span style="font-weight:400;color:#888;font-size:0.8rem;">(click a row to see the answer given)</span></h2>
     <table>
       <thead>
-        <tr><th>Question</th><th>Confidence</th><th>Escalated</th><th>Asked</th></tr>
+        <tr><th>Question</th><th>Confidence</th><th>Escalated</th><th>Asked</th><th></th></tr>
       </thead>
-      <tbody id="queriesBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+      <tbody id="queriesBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
     </table>
   </section>
 </div>
@@ -134,6 +186,39 @@
 <script>
   const API_BASE = "https://web-production-b8927.up.railway.app";
   let allQueries = [];
+  let ADMIN_PW = sessionStorage.getItem("bh_admin_pw") || "";
+
+  // Every admin call carries the shared password as a header.
+  async function adminFetch(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers || {}, { "X-Admin-Password": ADMIN_PW });
+    const res = await fetch(API_BASE + path, opts);
+    if (res.status === 401) {
+      sessionStorage.removeItem("bh_admin_pw");
+      location.reload();
+      throw new Error("unauthorized");
+    }
+    return res;
+  }
+
+  function copyToClipboard(text, btn) {
+    const done = () => {
+      const was = btn.textContent;
+      btn.textContent = "Copied";
+      btn.classList.add("promoted");
+      setTimeout(() => { btn.textContent = was; btn.classList.remove("promoted"); }, 1400);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => {});
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  }
 
   function fmtDate(iso) {
     const d = new Date(iso);
@@ -148,7 +233,7 @@
   }
 
   async function loadStats() {
-    const res = await fetch(`${API_BASE}/admin/stats`);
+    const res = await adminFetch("/admin/stats");
     const s = await res.json();
     const cards = document.getElementById("cards");
     cards.innerHTML = `
@@ -172,11 +257,11 @@
   }
 
   async function loadQueries() {
-    const res = await fetch(`${API_BASE}/admin/queries?limit=100`);
+    const res = await adminFetch("/admin/queries?limit=100");
     allQueries = await res.json();
     const tbody = document.getElementById("queriesBody");
     if (!allQueries.length) {
-      tbody.innerHTML = '<tr><td colspan="4" class="empty">No questions logged yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No questions logged yet.</td></tr>';
       return;
     }
     tbody.innerHTML = allQueries.map((q, i) => `
@@ -185,11 +270,35 @@
         <td>${confidenceTag(q.match_score)}</td>
         <td>${q.was_escalated ? '<span class="tag yes">Yes</span>' : '<span class="tag no">No</span>'}</td>
         <td>${fmtDate(q.created_at)}</td>
+        <td>${(!q.was_escalated && q.ai_answer && !q.matched_entry_id)
+              ? `<button class="btn-sm promote" data-qid="${q.id}">Promote</button>`
+              : (q.matched_entry_id ? '<span style="font-size:0.75rem;color:#999;">in KB</span>' : "")}</td>
       </tr>
       <tr class="detail-row" id="detail-${i}" style="display:none;">
-        <td colspan="4">${(q.ai_answer || "(no answer recorded)").replace(/</g, "&lt;")}</td>
+        <td colspan="5">${(q.ai_answer || "(no answer recorded)").replace(/</g, "&lt;")}</td>
       </tr>
     `).join("");
+
+    document.querySelectorAll(".promote").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        btn.disabled = true;
+        btn.textContent = "Promoting…";
+        try {
+          const res = await adminFetch(`/admin/promote/${btn.getAttribute("data-qid")}`, { method: "POST" });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            btn.textContent = "Failed";
+            btn.title = body.detail || "Could not promote.";
+            return;
+          }
+          btn.textContent = "Promoted";
+          btn.classList.add("promoted");
+        } catch (err) {
+          btn.textContent = "Failed";
+        }
+      });
+    });
 
     document.querySelectorAll(".q-row").forEach((row) => {
       row.addEventListener("click", () => {
@@ -203,7 +312,7 @@
   }
 
   async function loadReviewQueue() {
-    const res = await fetch(`${API_BASE}/admin/review-queue?status=open`);
+    const res = await adminFetch("/admin/review-queue?status=open");
     const items = await res.json();
     const list = document.getElementById("reviewList");
     if (!items.length) {
@@ -214,11 +323,16 @@
     items.forEach((item) => {
       const match = allQueries.find((q) => q.id === item.related_query_id);
       const questionText = match ? match.query_text : "(question text not available)";
+      const askerEmail = match && match.asker_email ? match.asker_email : null;
       const div = document.createElement("div");
       div.className = "review-item";
       div.innerHTML = `
         <div class="q">${questionText}</div>
         <div class="meta">Reason: ${item.reason} · Flagged ${fmtDate(item.flagged_at)}</div>
+        ${askerEmail
+          ? `<div class="email-line">Wants a reply at <code>${askerEmail.replace(/</g, "&lt;")}</code>
+               <button class="btn-sm copy-email" type="button">Copy address</button></div>`
+          : '<div class="no-email">No email left — this one just gets published on the site.</div>'}
         <textarea rows="3" placeholder="Type the real answer here…"></textarea>
         <div class="resolve-row">
           <input type="text" placeholder="Your name" />
@@ -230,6 +344,10 @@
       const nameInput = div.querySelector('input[type="text"]');
       const answerInput = div.querySelector("textarea");
       const err = div.querySelector(".err");
+      const copyEmailBtn = div.querySelector(".copy-email");
+      if (copyEmailBtn) {
+        copyEmailBtn.addEventListener("click", () => copyToClipboard(askerEmail, copyEmailBtn));
+      }
       btn.addEventListener("click", async () => {
         const name = nameInput.value.trim();
         const answer = answerInput.value.trim();
@@ -240,21 +358,148 @@
         err.style.display = "none";
         btn.disabled = true;
         btn.textContent = "Resolving…";
-        await fetch(`${API_BASE}/admin/review-queue/${item.id}/resolve`, {
+        await adminFetch(`/admin/review-queue/${item.id}/resolve`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ resolved_by: name, answer: answer }),
         });
-        div.remove();
+        renderSendStep(div, item, questionText, answer);
         loadStats();
       });
       list.appendChild(div);
     });
   }
 
-  (async function init() {
+  // After the answer is saved, hand the human what they need to send it
+  // themselves. Nothing is emailed automatically — deliberate, at this volume.
+  function renderSendStep(div, item, questionText, answer) {
+    const match = allQueries.find((q) => q.id === item.related_query_id);
+    const askerEmail = match && match.asker_email ? match.asker_email : null;
+
+    if (!askerEmail) {
+      div.innerHTML = '<div class="q">' + questionText + '</div>' +
+        '<div class="meta">Answered — now published on the site. No email was requested.</div>';
+      return;
+    }
+
+    div.innerHTML = [
+      '<div class="q">', questionText, '</div>',
+      '<div class="meta">Answered. Copy the pieces below into an email and send it from info@bikehouston.org.</div>',
+      '<div class="email-line">To: <code>', askerEmail.replace(/</g, "&lt;"), '</code>',
+      '<button class="btn-sm" data-copy="email" type="button">Copy address</button>',
+      '<button class="btn-sm" data-copy="body" type="button">Copy answer</button></div>',
+      '<div class="resolve-row"><button data-act="sent" type="button">Mark reply sent</button></div>'
+    ].join("");
+
+    const body = [
+      "Hi,",
+      "",
+      "Thanks for your question through the BikeHouston FAQ:",
+      "",
+      '"' + questionText + '"',
+      "",
+      answer,
+      "",
+      "If you have any follow-up questions, just reply to this email.",
+      "",
+      "— BikeHouston",
+      "info@bikehouston.org · 832-304-4666"
+    ].join("\n");
+
+    div.querySelectorAll("[data-copy]").forEach((b) => {
+      b.addEventListener("click", () => {
+        copyToClipboard(b.getAttribute("data-copy") === "email" ? askerEmail : body, b);
+      });
+    });
+
+    const sentBtn = div.querySelector('[data-act="sent"]');
+    sentBtn.addEventListener("click", async () => {
+      sentBtn.disabled = true;
+      sentBtn.textContent = "Saving…";
+      try {
+        await adminFetch(`/admin/review-queue/${item.id}/sent`, { method: "POST" });
+        div.innerHTML = '<div class="q">' + questionText + '</div>' +
+          '<div class="meta"><span class="sent-badge">Reply sent</span> to ' +
+          askerEmail.replace(/</g, "&lt;") + '</div>';
+      } catch (e) {
+        sentBtn.disabled = false;
+        sentBtn.textContent = "Mark reply sent";
+      }
+    });
+  }
+
+  async function loadFlagged() {
+    const list = document.getElementById("flaggedList");
+    try {
+      const res = await adminFetch("/admin/flagged");
+      const items = await res.json();
+      if (!items.length) {
+        list.innerHTML = '<div class="empty">Nothing flagged — no thumbs-down yet.</div>';
+        return;
+      }
+      list.innerHTML = items.map((it) => `
+        <div class="flag-item">
+          <div class="q">${it.question}</div>
+          <div class="votes">👎 ${it.unhelpful_count} · 👍 ${it.helpful_count}</div>
+          <div class="a">${(it.answer || "").replace(/</g, "&lt;")}</div>
+        </div>
+      `).join("");
+    } catch (e) {
+      list.innerHTML = '<div class="empty">Could not load flagged answers.</div>';
+    }
+  }
+
+  async function init() {
     await loadQueries();
-    await Promise.all([loadStats(), loadReviewQueue()]);
+    await Promise.all([loadStats(), loadReviewQueue(), loadFlagged()]);
+  }
+
+  // ---- password gate ----
+  const gate = document.getElementById("gate");
+  const gatePw = document.getElementById("gatePw");
+  const gateBtn = document.getElementById("gateBtn");
+  const gateErr = document.getElementById("gateErr");
+
+  async function tryUnlock(pw) {
+    const res = await fetch(API_BASE + "/admin/verify", { headers: { "X-Admin-Password": pw } });
+    if (res.ok) return { ok: true };
+    let detail = "Incorrect password.";
+    try { detail = (await res.json()).detail || detail; } catch (e) {}
+    return { ok: false, detail: detail };
+  }
+
+  async function unlock() {
+    const pw = gatePw.value.trim();
+    if (!pw) return;
+    gateBtn.disabled = true;
+    gateBtn.textContent = "Checking…";
+    const result = await tryUnlock(pw).catch(() => ({ ok: false, detail: "Could not reach the server." }));
+    if (!result.ok) {
+      gateErr.textContent = result.detail;
+      gateErr.style.display = "block";
+      gateBtn.disabled = false;
+      gateBtn.textContent = "Unlock";
+      return;
+    }
+    ADMIN_PW = pw;
+    sessionStorage.setItem("bh_admin_pw", pw);
+    gate.style.display = "none";
+    document.getElementById("main").style.display = "block";
+    init();
+  }
+
+  gateBtn.addEventListener("click", unlock);
+  gatePw.addEventListener("keydown", (e) => { if (e.key === "Enter") unlock(); });
+
+  (async function boot() {
+    if (ADMIN_PW && (await tryUnlock(ADMIN_PW).catch(() => ({ ok: false }))).ok) {
+      gate.style.display = "none";
+      document.getElementById("main").style.display = "block";
+      init();
+    } else {
+      sessionStorage.removeItem("bh_admin_pw");
+      gatePw.focus();
+    }
   })();
 </script>
 </body>

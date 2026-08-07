@@ -69,4 +69,9 @@ class ReviewQueueItem(Base):
     resolved_by = Column(String(128), nullable=True)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Set when a human has actually emailed the answer back to the asker.
+    # NOTE: requires a manual ALTER TABLE against the live Railway Postgres —
+    # create_all() will not add this column to the existing table.
+    reply_sent_at = Column(DateTime(timezone=True), nullable=True)
+
     flagged_at = Column(DateTime(timezone=True), server_default=func.now())

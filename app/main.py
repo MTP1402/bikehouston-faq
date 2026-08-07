@@ -1,13 +1,36 @@
-from fastapi import FastAPI, Depends
+import os
+import secrets
+from datetime import datetime, timezone
+
+from fastapi import FastAPI, Depends, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
-from typing import List
+from typing import List, Optional
 
 from app.database import get_db, engine, Base
 from app import models, schemas, search, ai
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
+
+# ---- Admin auth (shared password) ----
+# Set ADMIN_PASSWORD in the Railway service variables. This is a single shared
+# password, NOT per-user accounts — it exists to keep the admin routes from
+# being wide open. Real per-user auth should hook into BikeHouston's own
+# identity system and is deliberately left for whoever takes this over.
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+
+
+def require_admin(x_admin_password: Optional[str] = Header(default=None)):
+    if not ADMIN_PASSWORD:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin access is not configured. Set the ADMIN_PASSWORD "
+                   "environment variable on the Railway web service.",
+        )
+    if not x_admin_password or not secrets.compare_digest(x_admin_password, ADMIN_PASSWORD):
+        raise HTTPException(status_code=401, detail="Incorrect admin password.")
+    return True
 
 Base.metadata.create_all(bind=engine)
 
@@ -54,8 +77,8 @@ def ask(payload: schemas.AskRequest, db: Session = Depends(get_db)):
         elif not result.get("confident", False) or result.get("needs_human"):
             escalated = True
             escalation_reason = result.get("needs_human_reason") or "low_confidence"
-            answer_text = ("Good question — I want to make sure you get an accurate answer, "
-                            "so I'm passing this to someone at BikeHouston who can follow up.")
+            answer_text = ("I can't answer this confidently, so I'm sending it to the "
+                            "BikeHouston team for review.")
         else:
             answer_text = result["answer"]
 
@@ -67,8 +90,8 @@ def ask(payload: schemas.AskRequest, db: Session = Depends(get_db)):
         elif not result.get("confident", False) or result.get("needs_human"):
             escalated = True
             escalation_reason = result.get("needs_human_reason") or "no_kb_match"
-            answer_text = ("That's outside what I can confidently answer right now — "
-                            "I'm passing it to someone at BikeHouston who can help.")
+            answer_text = ("I can't answer this confidently, so I'm sending it to the "
+                            "BikeHouston team for review.")
         else:
             confidence = "medium"
             answer_text = result["answer"]
@@ -107,6 +130,24 @@ def ask(payload: schemas.AskRequest, db: Session = Depends(get_db)):
         confidence=confidence,
         query_id=log_entry.id,
     )
+
+
+@app.post("/query/{query_id}/email")
+def attach_email(query_id: int, payload: schemas.EmailRequest, db: Session = Depends(get_db)):
+    """
+    Public endpoint: lets someone whose question was escalated leave an email
+    afterwards, so a human can follow up. Sending is manual — see the admin
+    dashboard, which surfaces the address with a copy button.
+    """
+    q = db.query(models.UserQuery).filter(models.UserQuery.id == query_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="not found")
+    email = (payload.email or "").strip()
+    if "@" not in email or len(email) > 255:
+        raise HTTPException(status_code=400, detail="Please enter a valid email address.")
+    q.asker_email = email
+    db.commit()
+    return {"ok": True}
 
 
 @app.get("/popular")
@@ -230,7 +271,7 @@ def faq_feedback(entry_id: int, helpful: bool, db: Session = Depends(get_db)):
 
 # ---- Admin routes (no auth yet — add before this is public-facing) ----
 
-@app.get("/admin/stats")
+@app.get("/admin/stats", dependencies=[Depends(require_admin)])
 def admin_stats(db: Session = Depends(get_db)):
     """
     Summary report for an admin: total volume, how confident the matches
@@ -293,7 +334,7 @@ def admin_stats(db: Session = Depends(get_db)):
     }
 
 
-@app.get("/admin/queries")
+@app.get("/admin/queries", dependencies=[Depends(require_admin)])
 def list_queries(limit: int = 50, db: Session = Depends(get_db)):
     rows = (
         db.query(models.UserQuery)
@@ -304,7 +345,7 @@ def list_queries(limit: int = 50, db: Session = Depends(get_db)):
     return rows
 
 
-@app.get("/admin/review-queue", response_model=List[schemas.ReviewQueueOut])
+@app.get("/admin/review-queue", response_model=List[schemas.ReviewQueueOut], dependencies=[Depends(require_admin)])
 def list_review_queue(status: str = "open", db: Session = Depends(get_db)):
     rows = (
         db.query(models.ReviewQueueItem)
@@ -315,7 +356,7 @@ def list_review_queue(status: str = "open", db: Session = Depends(get_db)):
     return rows
 
 
-@app.post("/admin/review-queue/{item_id}/resolve")
+@app.post("/admin/review-queue/{item_id}/resolve", dependencies=[Depends(require_admin)])
 def resolve_review_item(item_id: int, payload: schemas.ResolveRequest, db: Session = Depends(get_db)):
     item = db.query(models.ReviewQueueItem).filter(models.ReviewQueueItem.id == item_id).first()
     if not item:
@@ -335,12 +376,12 @@ def resolve_review_item(item_id: int, payload: schemas.ResolveRequest, db: Sessi
     return {"ok": True}
 
 
-@app.get("/admin/faq", response_model=List[schemas.FAQEntryOut])
+@app.get("/admin/faq", response_model=List[schemas.FAQEntryOut], dependencies=[Depends(require_admin)])
 def list_faq(db: Session = Depends(get_db)):
     return db.query(models.FAQEntry).order_by(models.FAQEntry.category).all()
 
 
-@app.post("/admin/faq", response_model=schemas.FAQEntryOut)
+@app.post("/admin/faq", response_model=schemas.FAQEntryOut, dependencies=[Depends(require_admin)])
 def create_faq(entry: schemas.FAQEntryIn, db: Session = Depends(get_db)):
     db_entry = models.FAQEntry(**entry.dict())
     db.add(db_entry)
@@ -349,7 +390,7 @@ def create_faq(entry: schemas.FAQEntryIn, db: Session = Depends(get_db)):
     return db_entry
 
 
-@app.put("/admin/faq/{entry_id}", response_model=schemas.FAQEntryOut)
+@app.put("/admin/faq/{entry_id}", response_model=schemas.FAQEntryOut, dependencies=[Depends(require_admin)])
 def update_faq(entry_id: int, entry: schemas.FAQEntryIn, db: Session = Depends(get_db)):
     db_entry = db.query(models.FAQEntry).filter(models.FAQEntry.id == entry_id).first()
     if not db_entry:
@@ -359,3 +400,94 @@ def update_faq(entry_id: int, entry: schemas.FAQEntryIn, db: Session = Depends(g
     db.commit()
     db.refresh(db_entry)
     return db_entry
+
+
+@app.get("/admin/flagged", dependencies=[Depends(require_admin)])
+def admin_flagged(db: Session = Depends(get_db)):
+    """
+    Published KB entries that have picked up at least one thumbs-down.
+    A downvote IS the flag — there's no separate 'report' control, so this
+    is the review list: worst ratio first.
+    """
+    entries = (
+        db.query(models.FAQEntry)
+        .filter(models.FAQEntry.unhelpful_count > 0)
+        .all()
+    )
+    result = [
+        {
+            "id": e.id,
+            "question": e.question_canonical,
+            "answer": e.answer,
+            "category": e.category,
+            "helpful_count": e.helpful_count or 0,
+            "unhelpful_count": e.unhelpful_count or 0,
+        }
+        for e in entries
+    ]
+    result.sort(key=lambda r: (-r["unhelpful_count"], r["helpful_count"]))
+    return result
+
+
+@app.post("/admin/promote/{query_id}", dependencies=[Depends(require_admin)])
+def promote_query(query_id: int, category: str = "general", db: Session = Depends(get_db)):
+    """
+    Promote a logged question+answer out of user_queries and into faq_entries,
+    so it becomes browsable, votable, and — importantly — a trigram match target
+    for future questions, which means the next person asking something similar
+    gets a direct KB answer with no AI call.
+    """
+    q = db.query(models.UserQuery).filter(models.UserQuery.id == query_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="not found")
+    if not q.ai_answer or not q.ai_answer.strip():
+        raise HTTPException(status_code=400, detail="That query has no answer to promote.")
+    if q.was_escalated:
+        raise HTTPException(
+            status_code=400,
+            detail="That question was escalated — answer it in the review queue instead.",
+        )
+
+    existing = (
+        db.query(models.FAQEntry)
+        .filter(models.FAQEntry.question_canonical == q.query_text)
+        .first()
+    )
+    if existing:
+        return {"ok": True, "entry_id": existing.id, "already_existed": True}
+
+    entry = models.FAQEntry(
+        question_canonical=q.query_text,
+        question_variants=[],
+        answer=q.ai_answer,
+        category=category,
+        sources=[],
+        status="published",
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+
+    # Point the originating query at the new entry so it starts with an
+    # ask_count of 1 rather than showing "0 asked" on the browse page.
+    q.matched_entry_id = entry.id
+    db.commit()
+
+    return {"ok": True, "entry_id": entry.id, "already_existed": False}
+
+
+@app.post("/admin/review-queue/{item_id}/sent", dependencies=[Depends(require_admin)])
+def mark_reply_sent(item_id: int, db: Session = Depends(get_db)):
+    """Record that a human has emailed the answer back to the asker."""
+    item = db.query(models.ReviewQueueItem).filter(models.ReviewQueueItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="not found")
+    item.reply_sent_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"ok": True, "reply_sent_at": item.reply_sent_at}
+
+
+@app.get("/admin/verify", dependencies=[Depends(require_admin)])
+def admin_verify():
+    """Cheap endpoint for the admin page's password prompt to validate against."""
+    return {"ok": True}
