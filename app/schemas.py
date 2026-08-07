@@ -6,6 +6,7 @@ from datetime import datetime
 class AskRequest(BaseModel):
     query: str
     session_id: Optional[str] = None
+    email: Optional[str] = None  # optional, for a personal follow-up if escalated
 
 
 class AskResponse(BaseModel):
@@ -14,6 +15,7 @@ class AskResponse(BaseModel):
     escalation_reason: Optional[str] = None
     matched_entry_id: Optional[int] = None
     confidence: str  # "high" | "medium" | "low"
+    query_id: Optional[int] = None
 
 
 class FAQEntryIn(BaseModel):
@@ -45,6 +47,17 @@ class ReviewQueueOut(BaseModel):
     source_diff_notes: Optional[str]
     status: str
     flagged_at: datetime
+
+
+class ResolveRequest(BaseModel):
+    resolved_by: str
+    answer: Optional[str] = None  # the real answer, if the admin is writing one now
+
+
+class AnsweredItem(BaseModel):
+    question: str
+    answer: str
+    resolved_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
