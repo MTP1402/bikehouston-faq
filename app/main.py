@@ -63,13 +63,23 @@ def _resolve(result: dict, default_reason: str):
     supplied one, show it and append the escalation note rather than throwing it
     away and replacing it with the note alone.
     """
+    # escalation_reason is VARCHAR(128). The model writes prose here, and a
+    # long reason used to blow up the INSERT with StringDataRightTruncation —
+    # taking down the whole /ask request after the answer had been generated.
+    # Truncate at the boundary rather than trusting the model to be brief.
+    MAX_REASON = 128
+
+    def _fit(reason: str) -> str:
+        reason = (reason or "").strip()
+        return reason[:MAX_REASON - 1] + "\u2026" if len(reason) > MAX_REASON else reason
+
     needs_human = bool(result.get("needs_human"))
     confident = bool(result.get("confident", False))
     on_topic = bool(result.get("on_topic", True))
     partial = (result.get("answer") or "").strip()
 
     if needs_human or (on_topic and not confident):
-        reason = result.get("needs_human_reason") or default_reason
+        reason = _fit(result.get("needs_human_reason")) or default_reason
         if partial:
             return True, reason, partial + "\n\n" + ESCALATION_NOTE
         return True, reason, ESCALATION_NOTE

@@ -70,7 +70,7 @@ Respond ONLY with a JSON object, no other text, no markdown code fences, in this
   "confident": true/false,
   "answer": "your answer text, a useful partial answer if escalating, or a brief polite redirect if off-topic",
   "needs_human": true/false,
-  "needs_human_reason": "short reason, or null"
+  "needs_human_reason": "short reason UNDER 100 CHARACTERS, or null"
 }
 
 Note: "needs_human": true and a non-empty "answer" can coexist. That is the
