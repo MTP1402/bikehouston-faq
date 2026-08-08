@@ -44,6 +44,42 @@ app.add_middleware(
 )
 
 
+ESCALATION_NOTE = ("I can't answer this confidently, so I'm sending it to the "
+                   "BikeHouston team for review.")
+
+
+def _resolve(result: dict, default_reason: str):
+    """
+    Turn the AI's self-report into (escalated, reason, answer_text).
+
+    needs_human is checked FIRST, before on_topic. That ordering matters: a
+    question can be squarely on-topic for BikeHouston and still need a person —
+    anything turning on Texas law, or on local judgement like "which intersection
+    most needs a bike lane". Previously an off-topic verdict short-circuited
+    escalation, so those questions were answered with a polite brush-off and
+    never reached the review queue.
+
+    An escalated answer can still carry useful practical content. If the model
+    supplied one, show it and append the escalation note rather than throwing it
+    away and replacing it with the note alone.
+    """
+    needs_human = bool(result.get("needs_human"))
+    confident = bool(result.get("confident", False))
+    on_topic = bool(result.get("on_topic", True))
+    partial = (result.get("answer") or "").strip()
+
+    if needs_human or (on_topic and not confident):
+        reason = result.get("needs_human_reason") or default_reason
+        if partial:
+            return True, reason, partial + "\n\n" + ESCALATION_NOTE
+        return True, reason, ESCALATION_NOTE
+
+    if not on_topic:
+        return False, None, partial
+
+    return False, None, partial
+
+
 @app.get("/")
 def root():
     return {"status": "ok", "version": APP_VERSION}
@@ -71,30 +107,14 @@ def ask(payload: schemas.AskRequest, db: Session = Depends(get_db)):
         matched_entry_id = match.id
         kb_context = f"Closest known answer (may be a related but not identical question): {match.answer}"
         result = ai.generate_answer(payload.query, kb_context)
-        if not result.get("on_topic", True):
-            escalated = False
-            answer_text = result["answer"]
-        elif not result.get("confident", False) or result.get("needs_human"):
-            escalated = True
-            escalation_reason = result.get("needs_human_reason") or "low_confidence"
-            answer_text = ("I can't answer this confidently, so I'm sending it to the "
-                            "BikeHouston team for review.")
-        else:
-            answer_text = result["answer"]
+        escalated, escalation_reason, answer_text = _resolve(result, "low_confidence")
 
     else:
         # No good match — let the AI attempt cold, but default to escalation on any doubt
         result = ai.generate_answer(payload.query)
-        if not result.get("on_topic", True):
-            answer_text = result["answer"]
-        elif not result.get("confident", False) or result.get("needs_human"):
-            escalated = True
-            escalation_reason = result.get("needs_human_reason") or "no_kb_match"
-            answer_text = ("I can't answer this confidently, so I'm sending it to the "
-                            "BikeHouston team for review.")
-        else:
+        escalated, escalation_reason, answer_text = _resolve(result, "no_kb_match")
+        if not escalated and result.get("on_topic", True):
             confidence = "medium"
-            answer_text = result["answer"]
 
     # Log every query for the admin dashboard, regardless of outcome
     log_entry = models.UserQuery(
@@ -523,3 +543,46 @@ def mark_reply_sent(item_id: int, db: Session = Depends(get_db)):
 def admin_verify():
     """Cheap endpoint for the admin page's password prompt to validate against."""
     return {"ok": True}
+
+
+@app.post("/admin/faq/{entry_id}/status", dependencies=[Depends(require_admin)])
+def set_faq_status(entry_id: int, status: str, db: Session = Depends(get_db)):
+    """
+    Change a KB entry's publication status without touching its content.
+
+    Exists because PUT /admin/faq/{id} replaces every field from the request
+    body, so using it to unpublish would blank anything not resent. This is the
+    safe way to pull an entry off the public site — e.g. one making a legal
+    claim that needs a human to verify — while keeping the text intact for
+    whoever rewrites it.
+
+    "published" is the only status /browse and /popular will show.
+    """
+    allowed = {"published", "draft", "needs_review"}
+    if status not in allowed:
+        raise HTTPException(status_code=400, detail=f"status must be one of {sorted(allowed)}")
+    entry = db.query(models.FAQEntry).filter(models.FAQEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="not found")
+    entry.status = status
+    db.commit()
+    return {"id": entry.id, "status": entry.status, "question": entry.question_canonical}
+
+
+@app.get("/admin/faq/all", dependencies=[Depends(require_admin)])
+def admin_faq_all(db: Session = Depends(get_db)):
+    """Every KB entry regardless of status — the published-only /admin/faq
+    listing can't show you what you've already pulled down for review."""
+    entries = db.query(models.FAQEntry).order_by(models.FAQEntry.id).all()
+    return [
+        {
+            "id": e.id,
+            "question": e.question_canonical,
+            "answer": e.answer,
+            "category": e.category,
+            "status": e.status,
+            "helpful_count": e.helpful_count or 0,
+            "unhelpful_count": e.unhelpful_count or 0,
+        }
+        for e in entries
+    ]
