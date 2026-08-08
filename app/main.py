@@ -207,37 +207,33 @@ def popular_questions(limit: int = 10, db: Session = Depends(get_db)):
     on the frontend. Only surfaces already-published FAQ content — never
     raw user-typed query text — so it's safe to expose without auth.
     """
+    # The published filter has to be applied BEFORE the limit, not after.
+    # Ranking first and filtering second meant the top N could be entirely
+    # unpublished entries — which is exactly what happened after the legal
+    # audit pulled the six most-asked seeds. The list came back nearly empty
+    # not because nothing qualified, but because nothing qualifying was ever
+    # examined.
     rows = (
-        db.query(models.UserQuery.matched_entry_id, func.count(models.UserQuery.id).label("ask_count"))
-        .filter(models.UserQuery.matched_entry_id.isnot(None))
-        .group_by(models.UserQuery.matched_entry_id)
-        .order_by(desc("ask_count"))
+        db.query(
+            models.FAQEntry.id,
+            models.FAQEntry.question_canonical,
+            models.FAQEntry.answer,
+            func.count(models.UserQuery.id).label("ask_count"),
+        )
+        .outerjoin(models.UserQuery, models.UserQuery.matched_entry_id == models.FAQEntry.id)
+        .filter(models.FAQEntry.status == "published")
+        .group_by(models.FAQEntry.id, models.FAQEntry.question_canonical, models.FAQEntry.answer)
+        .order_by(desc("ask_count"), models.FAQEntry.id)
         .limit(limit)
         .all()
     )
 
-    entry_ids = [r[0] for r in rows]
-    if not entry_ids:
-        return []
-
-    entries = {
-        e.id: e
-        for e in db.query(models.FAQEntry)
-        .filter(models.FAQEntry.id.in_(entry_ids), models.FAQEntry.status == "published")
-        .all()
-    }
-
-    result = []
-    for entry_id, ask_count in rows:
-        entry = entries.get(entry_id)
-        if entry:
-            result.append({
-                "id": entry.id,
-                "question": entry.question_canonical,
-                "answer": entry.answer,
-                "ask_count": ask_count,
-            })
-    return result
+    # outerjoin so a freshly promoted entry with no matches yet still appears
+    # rather than being invisible until someone happens to ask it.
+    return [
+        {"id": r[0], "question": r[1], "answer": r[2], "ask_count": r[3]}
+        for r in rows
+    ]
 
 
 @app.get("/answered", response_model=List[schemas.AnsweredItem])
