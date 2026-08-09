@@ -689,6 +689,23 @@ def set_faq_status(entry_id: int, status: str, db: Session = Depends(get_db)):
     entry = db.query(models.FAQEntry).filter(models.FAQEntry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="not found")
+
+    # Legal content can only reach the public site through /approve, which
+    # records who signed off. Without this check the approval gate lives only in
+    # the admin page's choice of button — one UI bug away from being bypassed
+    # silently, which is precisely what happened: /admin/faq/all omitted
+    # is_legal, so every entry rendered a plain Publish button and this endpoint
+    # would have published legal text with nobody's name against it.
+    if status == "published" and entry.is_legal and not entry.approved_by:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This entry contains legal content and has not been approved. "
+                "Publish it via POST /admin/faq/{id}/approve?approver_name=... "
+                "so the sign-off is recorded."
+            ),
+        )
+
     entry.status = status
     db.commit()
     return {"id": entry.id, "status": entry.status, "question": entry.question_canonical}
@@ -708,6 +725,15 @@ def admin_faq_all(db: Session = Depends(get_db)):
             "status": e.status,
             "helpful_count": e.helpful_count or 0,
             "unhelpful_count": e.unhelpful_count or 0,
+            # The admin page renders the legal-content pill, the approval line,
+            # the entry date, and — critically — decides between "Publish" and
+            # "Approve & publish" from these. They were added to the model in
+            # round 9 but not to this response, so the page saw undefined and
+            # every entry got a plain Publish button.
+            "is_legal": bool(e.is_legal),
+            "approved_by": e.approved_by,
+            "approved_at": e.approved_at.isoformat() if e.approved_at else None,
+            "last_updated": _display_date(e),
         }
         for e in entries
     ]
@@ -787,6 +813,51 @@ def edit_faq_entry(
         "is_legal": bool(entry.is_legal),
         "approval_revoked": revoked,
         "last_updated": _display_date(entry),
+    }
+
+
+@app.post("/admin/faq/{entry_id}/legal", dependencies=[Depends(require_admin)])
+def set_legal_flag(entry_id: int, editor_name: str, is_legal: bool = True, db: Session = Depends(get_db)):
+    """
+    Mark an entry as containing legal content, without touching its text.
+
+    is_legal is only ever set automatically on the paths that rewrite an entry —
+    the edit re-screen and approval. That left no way to flag an entry that
+    already exists: the only route was to edit it, which clears any approval and
+    moves its date, falsely implying someone revised the answer. Entries the
+    legal audit pulled down predate the column entirely and all default to
+    false, so without this they would publish with no approval required.
+
+    Clearing the flag also clears any approval — an approval is a sign-off on
+    legal content, so it means nothing once the entry is no longer legal.
+    """
+    name = (editor_name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="editor_name is required.")
+
+    entry = db.query(models.FAQEntry).filter(models.FAQEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="not found")
+
+    entry.is_legal = bool(is_legal)
+    if not is_legal:
+        entry.approved_by = None
+        entry.approved_at = None
+
+    _log_edit(
+        db, entry, name,
+        "flagged_legal" if is_legal else "unflagged_legal",
+        note=("marked as legal content" if is_legal else "no longer marked as legal content"),
+    )
+    db.commit()
+    db.refresh(entry)
+
+    return {
+        "id": entry.id,
+        "is_legal": bool(entry.is_legal),
+        "status": entry.status,
+        "approved_by": entry.approved_by,
+        "question": entry.question_canonical,
     }
 
 
