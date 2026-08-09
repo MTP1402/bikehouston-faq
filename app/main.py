@@ -487,8 +487,51 @@ def admin_flagged(db: Session = Depends(get_db)):
     return result
 
 
+# ---- Legal-claim screening for promotion ----
+# Rounds 3-5 hardened the generation path: the AI can no longer cite statutes or
+# assert legality, and legal questions escalate. Promotion had no equivalent
+# check, and every answer logged before round 3 predates those rules — so a
+# single click could reintroduce exactly what the legal audit removed. It did:
+# entry 10 went public with a fabricated section number after the audit.
+#
+# This screens the text rather than trusting the era it was written in.
+import re as _re
+
+_STATUTE_PATTERNS = [
+    (_re.compile(r"§"), "section symbol"),
+    (_re.compile(r"\b\d{3}\.\d{2,3}\b"), "statute-style number"),
+    (_re.compile(r"\bSec(?:tion|\.)\s*\d", _re.I), "section reference"),
+    (_re.compile(r"\b(?:Transportation|Penal|Health\s+and\s+Safety|Local\s+Government)\s+Code\b", _re.I), "code reference"),
+    (_re.compile(r"\bChapter\s+\d+\b", _re.I), "chapter reference"),
+]
+
+_LEGALITY_PATTERNS = [
+    (_re.compile(r"\bis\s+(?:it\s+)?(?:legal|illegal)\b", _re.I), "legality claim"),
+    (_re.compile(r"\b(?:it'?s|that'?s)\s+(?:legal|illegal)\b", _re.I), "legality claim"),
+    (_re.compile(r"\b(?:are|is)\s+(?:not\s+)?(?:required|permitted|prohibited|allowed)\s+by\s+law\b", _re.I), "legal requirement"),
+    (_re.compile(r"\brequired\s+by\s+(?:Texas|Houston|state|city)\s+law\b", _re.I), "legal requirement"),
+    (_re.compile(r"\b(?:Texas|Houston)\s+law\s+(?:requires|allows|permits|prohibits|states)\b", _re.I), "legal assertion"),
+    (_re.compile(r"\bagainst\s+the\s+law\b", _re.I), "legality claim"),
+    (_re.compile(r"\blegally\s+(?:allowed|permitted|required|entitled)\b", _re.I), "legality claim"),
+    (_re.compile(r"\bhelmets?\s+(?:are|is)\s+required\b", _re.I), "helmet requirement claim"),
+]
+
+
+def screen_for_legal_claims(text: str):
+    """Return a list of (kind, snippet) for anything that reads as a legal claim."""
+    findings = []
+    if not text:
+        return findings
+    for pattern, kind in _STATUTE_PATTERNS + _LEGALITY_PATTERNS:
+        for m in pattern.finditer(text):
+            start = max(0, m.start() - 45)
+            end = min(len(text), m.end() + 45)
+            findings.append({"kind": kind, "match": m.group(0), "context": text[start:end].strip()})
+    return findings
+
+
 @app.post("/admin/promote/{query_id}", dependencies=[Depends(require_admin)])
-def promote_query(query_id: int, category: str = "general", db: Session = Depends(get_db)):
+def promote_query(query_id: int, category: str = "general", force: bool = False, db: Session = Depends(get_db)):
     """
     Promote a logged question+answer out of user_queries and into faq_entries,
     so it becomes browsable, votable, and — importantly — a trigram match target
@@ -505,6 +548,21 @@ def promote_query(query_id: int, category: str = "general", db: Session = Depend
             status_code=400,
             detail="That question was escalated — answer it in the review queue instead.",
         )
+
+    # Legal claims don't go into the knowledge base from the query log. They go
+    # to BikeHouston staff. force=true exists so a human who has actually
+    # verified the text can override — deliberately awkward, not a default.
+    if not force:
+        findings = screen_for_legal_claims(q.ai_answer)
+        if findings:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": ("This answer makes a legal claim, so it can't be promoted directly. "
+                                "Send it to BikeHouston staff to verify or rewrite."),
+                    "findings": findings[:6],
+                },
+            )
 
     existing = (
         db.query(models.FAQEntry)

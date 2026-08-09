@@ -129,6 +129,15 @@
   .btn-sm:hover { border-color: var(--bh-green); color: var(--bh-green); }
   .btn-sm:disabled { opacity: 0.55; cursor: default; }
   .btn-sm.promoted { background: #e6f0e7; border-color: var(--bh-green); color: var(--bh-green); }
+  .btn-sm.blocked { background: #fdecea; border-color: #e0a2a2; color: #b3261e; }
+  .legal-warn {
+    background: #fdecea; border: 1px solid #e0a2a2; border-radius: 8px;
+    padding: 10px 12px; margin-top: 8px; font-size: 0.84rem; color: #7a2018;
+  }
+  .legal-warn .hd { font-weight: 700; margin-bottom: 6px; }
+  .legal-warn ul { margin: 6px 0 0 0; padding-left: 18px; }
+  .legal-warn li { margin-bottom: 3px; line-height: 1.4; }
+  .legal-warn code { background: #fff; padding: 1px 4px; border-radius: 3px; }
 
   .email-line {
     background: #fffaf2; border: 1px solid #f0c987; border-radius: 7px;
@@ -303,8 +312,27 @@
           const res = await adminFetch(`/admin/promote/${btn.getAttribute("data-qid")}`, { method: "POST" });
           if (!res.ok) {
             const body = await res.json().catch(() => ({}));
+            const d = body.detail;
+            // 409 = the answer makes a legal claim. Show what tripped it and
+            // why, rather than a bare "Failed" the person has to guess at.
+            if (res.status === 409 && d && d.findings) {
+              btn.textContent = "Legal claim";
+              btn.classList.add("blocked");
+              const row = btn.closest("tr");
+              const warn = document.createElement("tr");
+              warn.innerHTML = '<td colspan="6"><div class="legal-warn">' +
+                '<div class="hd">Not promoted — this answer makes a legal claim</div>' +
+                '<div>' + (d.message || "") + '</div><ul>' +
+                d.findings.map((f) =>
+                  "<li><strong>" + f.kind + ":</strong> <code>" +
+                  String(f.match).replace(/</g, "&lt;") + "</code> — …" +
+                  String(f.context).replace(/</g, "&lt;") + "…</li>").join("") +
+                '</ul></div></td>';
+              row.parentNode.insertBefore(warn, row.nextSibling);
+              return;
+            }
             btn.textContent = "Failed";
-            btn.title = body.detail || "Could not promote.";
+            btn.title = (typeof d === "string" ? d : (d && d.message)) || "Could not promote.";
             return;
           }
           btn.textContent = "Promoted";
