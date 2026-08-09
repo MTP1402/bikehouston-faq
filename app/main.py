@@ -516,13 +516,33 @@ _LEGALITY_PATTERNS = [
     (_re.compile(r"\bhelmets?\s+(?:are|is)\s+required\b", _re.I), "helmet requirement claim"),
 ]
 
+# The patterns above all key on affirmative phrasing — "law requires", "is
+# legal" — so the negative forms slipped straight through: "Texas law doesn't
+# require...", "there's no state law requiring...", "riding on the roadway is a
+# legal right". That is the exact text of entry 4, which the audit had to
+# unpublish, so this is a demonstrated gap rather than a hypothetical one.
+#
+# Telling a rider they are under no obligation is as actionable, and as
+# wrong-able, as telling them something is required — a negated claim is not the
+# safer half of the pair.
+_NEGATED_LEGALITY_PATTERNS = [
+    (_re.compile(r"\b(?:no|not|never)\s+(?:\w+\s+){0,3}(?:law|statute|ordinance)s?\b", _re.I), "negated legal claim"),
+    (_re.compile(r"\b(?:law|statute|ordinance)s?\s+(?:does|do|did)\s*n[o']?t\b", _re.I), "negated legal claim"),
+    (_re.compile(r"\b(?:law|statute|ordinance)s?\s+(?:does|do|did)\s+not\b", _re.I), "negated legal claim"),
+    (_re.compile(r"\bnot\s+(?:required|obligated|obliged|permitted|allowed)\s+to\b", _re.I), "negated legal claim"),
+    (_re.compile(r"\b(?:a|an|the|your|their|no)\s+legal\s+(?:right|obligation|duty|requirement)\b", _re.I), "legality claim"),
+    (_re.compile(r"\blawful(?:ly)?\b", _re.I), "legality claim"),
+    (_re.compile(r"\b(?:police|officers?|cops?)\s+(?:can|could|may|will)\s*n[o']?t\b", _re.I), "enforcement claim"),
+    (_re.compile(r"\b(?:police|officers?|cops?)\s+cannot\b", _re.I), "enforcement claim"),
+]
+
 
 def screen_for_legal_claims(text: str):
     """Return a list of (kind, snippet) for anything that reads as a legal claim."""
     findings = []
     if not text:
         return findings
-    for pattern, kind in _STATUTE_PATTERNS + _LEGALITY_PATTERNS:
+    for pattern, kind in _STATUTE_PATTERNS + _LEGALITY_PATTERNS + _NEGATED_LEGALITY_PATTERNS:
         for m in pattern.finditer(text):
             start = max(0, m.start() - 45)
             end = min(len(text), m.end() + 45)
