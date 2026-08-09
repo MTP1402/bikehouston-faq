@@ -327,7 +327,8 @@
         <td>${fmtDate(q.created_at)}</td>
         <td>${(!q.was_escalated && q.ai_answer && !q.matched_entry_id)
               ? `<button class="btn-sm promote" data-qid="${q.id}">Promote</button>`
-              : (q.matched_entry_id ? '<span style="font-size:0.75rem;color:#999;">in KB</span>' : "")}</td>
+              : (q.matched_entry_id ? '<span style="font-size:0.75rem;color:#999;">in KB</span>' : "")}
+            <button class="btn-sm del" data-qid="${q.id}" title="Remove this question from the log">Delete</button></td>
       </tr>
       <tr class="detail-row" id="detail-${i}" style="display:none;">
         <td colspan="6">${(q.ai_answer || "(no answer recorded)").replace(/</g, "&lt;")}</td>
@@ -371,6 +372,22 @@
         } catch (err) {
           btn.textContent = "Failed";
         }
+      });
+    });
+
+    document.querySelectorAll(".del").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm("Remove this question from the log? This does not affect any knowledge base entry it was promoted to.")) return;
+        btn.disabled = true;
+        try {
+          const r = await adminFetch(`/admin/queries/${btn.getAttribute("data-qid")}`, { method: "DELETE" });
+          if (!r.ok) throw new Error("failed");
+          const row = btn.closest("tr");
+          const detail = row.nextElementSibling;
+          if (detail && detail.classList.contains("detail-row")) detail.remove();
+          row.remove();
+        } catch (err) { btn.disabled = false; btn.textContent = "Failed"; }
       });
     });
 

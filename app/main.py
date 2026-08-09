@@ -942,3 +942,30 @@ def stale_entries(days: int = 365, db: Session = Depends(get_db)):
             })
     out.sort(key=lambda r: -r["days_old"])
     return out
+
+
+@app.delete("/admin/queries/{query_id}", dependencies=[Depends(require_admin)])
+def delete_query(query_id: int, db: Session = Depends(get_db)):
+    """
+    Remove a logged question from the query log.
+
+    For pruning the log down to questions worth keeping — test runs, duplicates,
+    nonsense, and answers superseded by a better one. This does NOT touch the
+    knowledge base: if the question was promoted, that entry stays published and
+    is unaffected.
+
+    Any open review-queue item pointing at this query is removed too, since a
+    queue entry whose question no longer exists can't be answered.
+    """
+    q = db.query(models.UserQuery).filter(models.UserQuery.id == query_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="not found")
+
+    removed_review_items = (
+        db.query(models.ReviewQueueItem)
+        .filter(models.ReviewQueueItem.related_query_id == query_id)
+        .delete(synchronize_session=False)
+    )
+    db.delete(q)
+    db.commit()
+    return {"deleted": query_id, "review_items_removed": removed_review_items}
