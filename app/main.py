@@ -1,6 +1,6 @@
 import os
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import FastAPI, Depends, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,6 +42,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _display_date(entry) -> str:
+    """
+    The single date a reader sees: the most recent of created / updated /
+    verified. Answers go stale — a route changes, a program ends — so showing
+    when an entry was last touched lets someone judge for themselves whether
+    it's still current, without us having to guess on their behalf.
+    """
+    candidates = [
+        getattr(entry, "last_verified_at", None),
+        getattr(entry, "updated_at", None),
+        getattr(entry, "created_at", None),
+    ]
+    candidates = [c for c in candidates if c]
+    return max(candidates).isoformat() if candidates else None
+
+
+def _log_edit(db, entry, editor_name, action, previous_answer=None, note=None):
+    """Append to the audit trail. Never updates in place — the history is the point."""
+    db.add(models.FAQEditLog(
+        faq_entry_id=entry.id,
+        editor_name=(editor_name or "unknown")[:128],
+        action=action,
+        note=note,
+        previous_answer=previous_answer,
+        new_answer=entry.answer,
+    ))
 
 
 ESCALATION_NOTE = ("I can't answer this confidently, so I'm sending it to the "
@@ -152,7 +180,12 @@ def ask(payload: schemas.AskRequest, db: Session = Depends(get_db)):
         db.add(review_item)
         db.commit()
 
+    # Only KB-sourced answers carry a date — a freshly generated one has no
+    # entry behind it, so there's nothing meaningful to date it to.
+    last_updated = _display_date(match) if (match and matched_entry_id) else None
+
     return schemas.AskResponse(
+        last_updated=last_updated,
         answer=answer_text,
         escalated=escalated,
         escalation_reason=escalation_reason,
@@ -230,8 +263,14 @@ def popular_questions(limit: int = 10, db: Session = Depends(get_db)):
 
     # outerjoin so a freshly promoted entry with no matches yet still appears
     # rather than being invisible until someone happens to ask it.
+    ids = [r[0] for r in rows]
+    dates = {}
+    if ids:
+        for e in db.query(models.FAQEntry).filter(models.FAQEntry.id.in_(ids)).all():
+            dates[e.id] = _display_date(e)
     return [
-        {"id": r[0], "question": r[1], "answer": r[2], "ask_count": r[3]}
+        {"id": r[0], "question": r[1], "answer": r[2], "ask_count": r[3],
+         "last_updated": dates.get(r[0])}
         for r in rows
     ]
 
@@ -294,6 +333,7 @@ def browse_faq(search: str = "", limit: int = 200, db: Session = Depends(get_db)
             "helpful_count": e.helpful_count or 0,
             "unhelpful_count": e.unhelpful_count or 0,
             "created_at": e.created_at.isoformat() if e.created_at else None,
+            "last_updated": _display_date(e),
         }
         for e in entries
     ]
@@ -480,6 +520,7 @@ def admin_flagged(db: Session = Depends(get_db)):
             "helpful_count": e.helpful_count or 0,
             "unhelpful_count": e.unhelpful_count or 0,
             "created_at": e.created_at.isoformat() if e.created_at else None,
+            "last_updated": _display_date(e),
         }
         for e in entries
     ]
@@ -670,3 +711,163 @@ def admin_faq_all(db: Session = Depends(get_db)):
         }
         for e in entries
     ]
+
+
+# ---- Editing, legal approval, and staleness ----
+
+@app.patch("/admin/faq/{entry_id}", dependencies=[Depends(require_admin)])
+def edit_faq_entry(
+    entry_id: int,
+    editor_name: str,
+    answer: Optional[str] = None,
+    question: Optional[str] = None,
+    category: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Partial edit. Only the fields supplied are changed.
+
+    Deliberately separate from PUT /admin/faq/{id}, which replaces every field
+    from the request body — using that to change one line silently blanks
+    everything not resent.
+
+    Editing an entry that makes a legal claim clears its approval and pulls it
+    off the public site. Otherwise a sign-off quietly transfers to text nobody
+    checked, which is the failure mode an audit trail is supposed to prevent.
+    """
+    if not (editor_name or "").strip():
+        raise HTTPException(status_code=400, detail="editor_name is required — edits are recorded.")
+
+    entry = db.query(models.FAQEntry).filter(models.FAQEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="not found")
+
+    previous = entry.answer
+    changed = []
+
+    if answer is not None and answer.strip() and answer != entry.answer:
+        entry.answer = answer
+        changed.append("answer")
+    if question is not None and question.strip():
+        entry.question_canonical = question
+        changed.append("question")
+    if category is not None and category.strip():
+        entry.category = category
+        changed.append("category")
+
+    if not changed:
+        return {"id": entry.id, "changed": [], "message": "Nothing changed."}
+
+    note = "edited: " + ", ".join(changed)
+    revoked = False
+
+    # Re-screen: an edit can introduce a legal claim into an entry that didn't
+    # have one, as well as remove one.
+    findings = screen_for_legal_claims(entry.answer)
+    if findings:
+        entry.is_legal = True
+
+    if entry.is_legal and "answer" in changed and entry.approved_by:
+        entry.approved_by = None
+        entry.approved_at = None
+        if entry.status == "published":
+            entry.status = "needs_review"
+        revoked = True
+        note += " — approval cleared, needs re-approval before republishing"
+
+    entry.last_verified_at = datetime.now(timezone.utc)
+    _log_edit(db, entry, editor_name, "edited", previous_answer=previous, note=note)
+    db.commit()
+    db.refresh(entry)
+
+    return {
+        "id": entry.id,
+        "changed": changed,
+        "status": entry.status,
+        "is_legal": bool(entry.is_legal),
+        "approval_revoked": revoked,
+        "last_updated": _display_date(entry),
+    }
+
+
+@app.post("/admin/faq/{entry_id}/approve", dependencies=[Depends(require_admin)])
+def approve_legal_entry(entry_id: int, approver_name: str, db: Session = Depends(get_db)):
+    """
+    Sign off on an entry making a legal claim, and publish it.
+
+    The name is recorded and kept, but never shown to readers — the public sees
+    only the date. This is the route back for the entries the legal audit pulled
+    down: someone who knows the law confirms the text, puts their name to it,
+    and it goes live.
+    """
+    name = (approver_name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="approver_name is required.")
+
+    entry = db.query(models.FAQEntry).filter(models.FAQEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="not found")
+
+    entry.is_legal = True
+    entry.approved_by = name[:128]
+    entry.approved_at = datetime.now(timezone.utc)
+    entry.last_verified_at = entry.approved_at
+    entry.status = "published"
+
+    _log_edit(db, entry, name, "approved", note="legal content approved and published")
+    db.commit()
+    db.refresh(entry)
+
+    return {
+        "id": entry.id,
+        "status": entry.status,
+        "approved_by": entry.approved_by,
+        "last_updated": _display_date(entry),
+    }
+
+
+@app.get("/admin/faq/{entry_id}/history", dependencies=[Depends(require_admin)])
+def faq_history(entry_id: int, db: Session = Depends(get_db)):
+    """Every recorded change to this entry, newest first."""
+    rows = (
+        db.query(models.FAQEditLog)
+        .filter(models.FAQEditLog.faq_entry_id == entry_id)
+        .order_by(desc(models.FAQEditLog.created_at))
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "editor_name": r.editor_name,
+            "action": r.action,
+            "note": r.note,
+            "previous_answer": r.previous_answer,
+            "new_answer": r.new_answer,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+
+@app.get("/admin/stale", dependencies=[Depends(require_admin)])
+def stale_entries(days: int = 365, db: Session = Depends(get_db)):
+    """
+    Published entries not touched in `days`. Surfaces them for review only —
+    nothing is unpublished automatically. Most answers don't go stale, and
+    content silently vanishing is worse than old content carrying a visible date.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    out = []
+    for e in db.query(models.FAQEntry).filter(models.FAQEntry.status == "published").all():
+        stamp = e.last_verified_at or e.updated_at or e.created_at
+        if stamp and stamp < cutoff:
+            out.append({
+                "id": e.id,
+                "question": e.question_canonical,
+                "category": e.category,
+                "is_legal": bool(e.is_legal),
+                "last_updated": _display_date(e),
+                "days_old": (datetime.now(timezone.utc) - stamp).days,
+            })
+    out.sort(key=lambda r: -r["days_old"])
+    return out

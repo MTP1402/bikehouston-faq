@@ -71,6 +71,7 @@
   .feedback button.voted { background: var(--bh-green); color: white; border-color: var(--bh-green); }
   .feedback .counts { font-size: 0.8rem; color: #888; }
   .empty { color: #888; font-style: italic; padding: 20px; text-align: center; }
+  .entry-date { font-size: 0.78rem; color: #7a8a7d; margin-top: 10px; font-style: italic; }
   .footnote { font-size: 0.95rem; color: #555; margin-top: 20px; line-height: 1.5; }
 
   .sortbar { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 14px 0; }
@@ -120,6 +121,13 @@
   const searchBox = document.getElementById("searchBox");
   let allItems = [];
 
+  function fmtEntryDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+  }
+
   function render(items) {
     if (!items.length) {
       list.innerHTML = '<div class="empty">No questions match yet.</div>';
@@ -136,6 +144,7 @@
             <button class="down" data-id="${item.id}">👎 Not helpful</button>
             <span class="counts">${item.helpful_count} found this helpful</span>
           </div>
+          ${item.last_updated ? `<div class="entry-date">Last updated ${fmtEntryDate(item.last_updated)}</div>` : ""}
         </div>
       </div>
     `).join("");

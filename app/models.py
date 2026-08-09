@@ -27,6 +27,13 @@ class FAQEntry(Base):
     helpful_count = Column(Integer, default=0)
     unhelpful_count = Column(Integer, default=0)
 
+    # Legal sign-off. Recorded, never shown publicly — readers see only the date.
+    # An entry flagged as making a legal claim can't be published until someone
+    # puts their name to it.
+    is_legal = Column(Boolean, default=False)
+    approved_by = Column(String(128), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -81,3 +88,27 @@ class ReviewQueueItem(Base):
     reply_sent_at = Column(DateTime(timezone=True), nullable=True)
 
     flagged_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class FAQEditLog(Base):
+    """
+    Append-only record of every change to a KB entry.
+
+    Kept in full rather than as a "last edited by" field because legal answers
+    are the ones that most need an audit trail: if a published statement about
+    what riders may do turns out to be wrong, the useful question is who changed
+    it, when, and what it said before — not just who touched it most recently.
+    """
+    __tablename__ = "faq_edit_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    faq_entry_id = Column(Integer, ForeignKey("faq_entries.id"), index=True, nullable=False)
+
+    editor_name = Column(String(128), nullable=False)
+    action = Column(String(32))  # edited | approved | published | unpublished | created
+    note = Column(Text, nullable=True)
+
+    previous_answer = Column(Text, nullable=True)
+    new_answer = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

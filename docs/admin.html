@@ -139,6 +139,27 @@
   .legal-warn li { margin-bottom: 3px; line-height: 1.4; }
   .legal-warn code { background: #fff; padding: 1px 4px; border-radius: 3px; }
 
+  .kb-item { border: 1px solid #e0e0e0; border-radius: 10px; padding: 14px; margin-bottom: 10px; background: white; }
+  .kb-item.unpub { background: #fbfbfb; border-style: dashed; }
+  .kb-item .q { font-weight: 600; margin-bottom: 4px; }
+  .kb-item .meta { font-size: 0.78rem; color: #888; margin-bottom: 8px; }
+  .kb-item .a { font-size: 0.9rem; color: #444; line-height: 1.5; white-space: pre-wrap; margin-bottom: 10px; }
+  .kb-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { border-radius: 999px; padding: 2px 9px; font-size: 0.72rem; font-weight: 600; }
+  .pill.pub { background: #e6f0e7; color: var(--bh-green); }
+  .pill.hold { background: #fdecea; color: #b3261e; }
+  .pill.legal { background: #fff4e5; color: #8a5a00; }
+  .kb-edit { margin-top: 10px; display: none; }
+  .kb-edit textarea {
+    width: 100%; min-height: 120px; padding: 10px; border: 1px solid #ccc;
+    border-radius: 8px; font-family: inherit; font-size: 0.9rem; line-height: 1.5;
+  }
+  .kb-edit input[type=text] { width: 100%; padding: 9px 11px; border: 1px solid #ccc; border-radius: 7px; margin-top: 8px; font-size: 0.9rem; }
+  .kb-edit .row { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+  .kb-hint { font-size: 0.78rem; color: #8a5a00; margin-top: 6px; }
+  .hist { margin-top: 10px; font-size: 0.8rem; color: #666; display: none; }
+  .hist-row { padding: 6px 0; border-top: 1px solid #eee; }
+
   .email-line {
     background: #fffaf2; border: 1px solid #f0c987; border-radius: 7px;
     padding: 8px 10px; margin-bottom: 10px; font-size: 0.85rem;
@@ -174,6 +195,16 @@
   <section>
     <h2>Needs a human answer</h2>
     <div id="reviewList"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section>
+    <h2>Knowledge base</h2>
+    <div id="kbList"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section>
+    <h2>Needs a freshness check <span style="font-weight:400;color:#888;font-size:0.8rem;">(published, untouched for over a year)</span></h2>
+    <div id="staleList"><div class="empty">Loading…</div></div>
   </section>
 
   <section>
@@ -492,9 +523,163 @@
     }
   }
 
+  function fmtEntryDate(iso) {
+    if (!iso) return "unknown";
+    const d = new Date(iso);
+    if (isNaN(d)) return "unknown";
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+  }
+
+  async function loadKB() {
+    const wrap = document.getElementById("kbList");
+    try {
+      const res = await adminFetch("/admin/faq/all");
+      const items = await res.json();
+      if (!items.length) {
+        wrap.innerHTML = '<div class="empty">No knowledge base entries yet.</div>';
+        return;
+      }
+      wrap.innerHTML = "";
+      items.forEach((it) => wrap.appendChild(renderKBItem(it)));
+    } catch (e) {
+      wrap.innerHTML = '<div class="empty">Could not load the knowledge base.</div>';
+    }
+  }
+
+  function renderKBItem(it) {
+    const published = it.status === "published";
+    const div = document.createElement("div");
+    div.className = "kb-item" + (published ? "" : " unpub");
+
+    const pills = [
+      '<span class="pill ' + (published ? "pub" : "hold") + '">' + it.status + "</span>",
+      it.is_legal ? '<span class="pill legal">legal content</span>' : "",
+    ].join(" ");
+
+    div.innerHTML = [
+      '<div class="q">' + String(it.question).replace(/</g, "&lt;") + "</div>",
+      '<div class="meta">', pills,
+      " · id ", it.id,
+      " · last updated ", fmtEntryDate(it.last_updated),
+      it.approved_by ? " · approved by " + String(it.approved_by).replace(/</g, "&lt;") : "",
+      "</div>",
+      '<div class="a">' + String(it.answer || "").replace(/</g, "&lt;") + "</div>",
+      '<div class="kb-actions">',
+      '<button class="btn-sm" data-act="edit">Edit</button>',
+      published
+        ? '<button class="btn-sm" data-act="unpublish">Unpublish</button>'
+        : (it.is_legal
+            ? '<button class="btn-sm" data-act="approve">Approve &amp; publish</button>'
+            : '<button class="btn-sm" data-act="publish">Publish</button>'),
+      '<button class="btn-sm" data-act="history">History</button>',
+      "</div>",
+      '<div class="kb-edit">',
+      '<textarea></textarea>',
+      '<input type="text" class="who" placeholder="Your name (recorded with the edit)" />',
+      it.is_legal ? '<div class="kb-hint">This entry contains legal content. Editing it clears any approval and takes it off the public site until someone signs off again.</div>' : "",
+      '<div class="row"><button class="btn-sm" data-act="save">Save</button>',
+      '<button class="btn-sm" data-act="cancel">Cancel</button>',
+      '<span class="err" style="color:#b3261e;font-size:0.8rem;"></span></div>',
+      "</div>",
+      '<div class="hist"></div>'
+    ].join("");
+
+    const editBox = div.querySelector(".kb-edit");
+    const ta = div.querySelector("textarea");
+    const who = div.querySelector(".who");
+    const err = div.querySelector(".err");
+    const hist = div.querySelector(".hist");
+
+    div.querySelectorAll("[data-act]").forEach((b) => {
+      b.addEventListener("click", async () => {
+        const act = b.getAttribute("data-act");
+
+        if (act === "edit") {
+          ta.value = it.answer || "";
+          editBox.style.display = "block";
+          ta.focus();
+          return;
+        }
+        if (act === "cancel") { editBox.style.display = "none"; return; }
+
+        if (act === "history") {
+          if (hist.style.display === "block") { hist.style.display = "none"; return; }
+          hist.innerHTML = "Loading…";
+          hist.style.display = "block";
+          try {
+            const r = await adminFetch("/admin/faq/" + it.id + "/history");
+            const rows = await r.json();
+            hist.innerHTML = rows.length
+              ? rows.map((h) =>
+                  '<div class="hist-row"><strong>' + String(h.editor_name).replace(/</g, "&lt;") +
+                  "</strong> — " + h.action + " · " + fmtEntryDate(h.created_at) +
+                  (h.note ? "<br>" + String(h.note).replace(/</g, "&lt;") : "") + "</div>").join("")
+              : '<div class="hist-row">No recorded changes.</div>';
+          } catch (e) { hist.innerHTML = "Could not load history."; }
+          return;
+        }
+
+        if (act === "save") {
+          const name = who.value.trim();
+          if (!name) { err.textContent = "Your name is required."; return; }
+          if (!ta.value.trim()) { err.textContent = "Answer can't be empty."; return; }
+          err.textContent = "";
+          b.disabled = true;
+          try {
+            const q = new URLSearchParams({ editor_name: name, answer: ta.value });
+            const r = await adminFetch("/admin/faq/" + it.id + "?" + q.toString(), { method: "PATCH" });
+            if (!r.ok) throw new Error("failed");
+            await loadKB();
+          } catch (e) { b.disabled = false; err.textContent = "Could not save."; }
+          return;
+        }
+
+        if (act === "approve") {
+          const name = prompt("Your name — recorded with the approval, not shown publicly:");
+          if (!name || !name.trim()) return;
+          b.disabled = true;
+          try {
+            await adminFetch("/admin/faq/" + it.id + "/approve?approver_name=" + encodeURIComponent(name.trim()), { method: "POST" });
+            await loadKB();
+          } catch (e) { b.disabled = false; }
+          return;
+        }
+
+        if (act === "publish" || act === "unpublish") {
+          const target = act === "publish" ? "published" : "needs_review";
+          b.disabled = true;
+          try {
+            await adminFetch("/admin/faq/" + it.id + "/status?status=" + target, { method: "POST" });
+            await loadKB();
+          } catch (e) { b.disabled = false; }
+        }
+      });
+    });
+
+    return div;
+  }
+
+  async function loadStale() {
+    const wrap = document.getElementById("staleList");
+    try {
+      const res = await adminFetch("/admin/stale?days=365");
+      const items = await res.json();
+      if (!items.length) {
+        wrap.innerHTML = '<div class="empty">Nothing older than a year.</div>';
+        return;
+      }
+      wrap.innerHTML = items.map((it) =>
+        '<div class="kb-item"><div class="q">' + String(it.question).replace(/</g, "&lt;") + "</div>" +
+        '<div class="meta">id ' + it.id + " · last updated " + fmtEntryDate(it.last_updated) +
+        " · " + it.days_old + " days ago" + (it.is_legal ? " · legal content" : "") + "</div></div>").join("");
+    } catch (e) {
+      wrap.innerHTML = '<div class="empty">Could not load.</div>';
+    }
+  }
+
   async function init() {
     await loadQueries();
-    await Promise.all([loadStats(), loadReviewQueue(), loadFlagged()]);
+    await Promise.all([loadStats(), loadReviewQueue(), loadFlagged(), loadKB(), loadStale()]);
   }
 
   // ---- password gate ----

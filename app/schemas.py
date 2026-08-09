@@ -10,6 +10,7 @@ class AskRequest(BaseModel):
 
 
 class AskResponse(BaseModel):
+    last_updated: Optional[str] = None
     answer: str
     escalated: bool
     escalation_reason: Optional[str] = None
