@@ -883,9 +883,12 @@ def approve_legal_entry(entry_id: int, approver_name: str, db: Session = Depends
     entry.approved_by = name[:128]
     entry.approved_at = datetime.now(timezone.utc)
     entry.last_verified_at = entry.approved_at
-    entry.status = "published"
 
-    _log_edit(db, entry, name, "approved", note="legal content approved and published")
+    # Approving does NOT publish. Verifying that an answer is legally correct
+    # and deciding it should go on the site are different judgements, possibly
+    # made by different people — an answer can be legally sound and still not
+    # ready to publish for reasons of tone, completeness, or timing.
+    _log_edit(db, entry, name, "approved", note="legal content approved — not yet published")
     db.commit()
     db.refresh(entry)
 
@@ -1015,7 +1018,16 @@ def admin_questions(limit: int = 500, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     out = []
     for q in queries:
-        entry = entries.get(q.matched_entry_id) if q.matched_entry_id else None
+        # matched_entry_id is set by two different things: promotion (which
+        # copies query_text verbatim into a new entry) and ordinary trigram
+        # matching during /ask. Treating both as "this question is in the KB"
+        # made escalated questions show a "published" pill because they merely
+        # resembled a published entry — hence rows reading "needs review" and
+        # "published" at once. Only count it as this question's own entry when
+        # the entry text actually came from this question.
+        candidate = entries.get(q.matched_entry_id) if q.matched_entry_id else None
+        entry = candidate if (candidate and candidate.question_canonical == q.query_text) else None
+        matched_only = candidate if (candidate and entry is None) else None
         review = open_reviews.get(q.id)
 
         stale = False
@@ -1035,11 +1047,16 @@ def admin_questions(limit: int = 500, db: Session = Depends(get_db)):
             "unhelpful_count": q.unhelpful_count or 0,
             "asker_email": q.asker_email,
             "review_item_id": review.id if review else None,
+            # The reviewer's working draft, kept apart from the public answer
+            # text so the notice the asker saw isn't what gets edited.
+            "review_draft": (review.proposed_answer if review else None),
+            "matched_entry_id": matched_only.id if matched_only else None,
             "entry": None if not entry else {
                 "id": entry.id,
                 "status": entry.status,
                 "is_legal": bool(entry.is_legal),
                 "approved_by": entry.approved_by,
+                "approved_at": entry.approved_at.isoformat() if entry.approved_at else None,
                 "last_updated": _display_date(entry),
                 "helpful_count": entry.helpful_count or 0,
                 "unhelpful_count": entry.unhelpful_count or 0,
@@ -1047,3 +1064,51 @@ def admin_questions(limit: int = 500, db: Session = Depends(get_db)):
             "stale": stale,
         })
     return out
+
+
+@app.post("/admin/review-queue/generate-drafts", dependencies=[Depends(require_admin)])
+def generate_review_drafts(limit: int = 50, overwrite: bool = False, db: Session = Depends(get_db)):
+    """
+    Fill in an AI draft for open review-queue items that don't have one.
+
+    Escalations logged before this existed only ever stored the public
+    "I'm sending this to the team" notice, so a reviewer opening one found
+    nothing to work from. This generates a draft per item and stores it in
+    proposed_answer — deliberately separate from the public answer text, which
+    stays as the notice the asker actually saw.
+
+    One call per item, so this is meant to be run once rather than on page load.
+    """
+    items = (
+        db.query(models.ReviewQueueItem)
+        .filter(models.ReviewQueueItem.status == "open")
+        .order_by(models.ReviewQueueItem.id)
+        .limit(limit)
+        .all()
+    )
+
+    generated, skipped, failed = 0, 0, []
+    for item in items:
+        if item.proposed_answer and not overwrite:
+            skipped += 1
+            continue
+        if not item.related_query_id:
+            skipped += 1
+            continue
+        q = db.query(models.UserQuery).filter(models.UserQuery.id == item.related_query_id).first()
+        if not q or not q.query_text:
+            skipped += 1
+            continue
+        try:
+            result = ai.generate_answer(q.query_text)
+            draft = (result.get("answer") or "").strip()
+            if draft:
+                item.proposed_answer = draft
+                generated += 1
+            else:
+                skipped += 1
+        except Exception as exc:
+            failed.append({"item_id": item.id, "error": str(exc)[:200]})
+
+    db.commit()
+    return {"generated": generated, "skipped": skipped, "failed": failed}

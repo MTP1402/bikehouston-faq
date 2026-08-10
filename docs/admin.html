@@ -54,6 +54,7 @@
   .pill.needs { background: #fff4e5; color: #a15c00; }
   .pill.notkb { background: #f0f0f0; color: #777; }
   .pill.stale { background: #eef2fb; color: #3a5a9a; }
+  .pill.appr { background: #e8f0fb; color: #26558c; }
 
   .row-body { display: none; padding: 0 14px 14px 14px; border-top: 1px solid #f0f0f0; }
   .row.open .row-body { display: block; }
@@ -178,6 +179,8 @@
         ? '<span class="pill pub">published</span>'
         : `<span class="pill hold">${esc(r.entry.status)}</span>`);
       if (r.entry.is_legal) p.push('<span class="pill legal">legal content</span>');
+      if (r.entry.is_legal && r.entry.approved_by && r.entry.status !== "published")
+        p.push('<span class="pill appr">approved, not published</span>');
     } else if (r.review_item_id == null) {
       p.push('<span class="pill notkb">not in KB</span>');
     }
@@ -227,8 +230,11 @@
     if (needsAnswer) {
       // Escalated: show the AI's draft in an editable box rather than blank,
       // so whoever answers starts from something.
-      parts.push('<div class="hint">This was escalated. The draft below is AI-generated and unverified — check every factual and legal claim before saving.</div>');
-      parts.push(`<textarea class="draft">${esc(r.answer || "")}</textarea>`);
+      const hasDraft = !!(r.review_draft && r.review_draft.trim());
+      parts.push('<div class="hint">' + (hasDraft
+        ? "This was escalated. The draft below is AI-generated and unverified — check every factual and legal claim before saving."
+        : "This was escalated and has no draft yet. Write the answer below.") + "</div>");
+      parts.push(`<textarea class="draft">${esc(hasDraft ? r.review_draft : "")}</textarea>`);
       if (r.asker_email) {
         parts.push(`<div class="email-line">Wants a reply at <code>${esc(r.asker_email)}</code>
           <button class="btn copy-email">Copy address</button><button class="btn copy-answer">Copy answer</button></div>`);
@@ -247,15 +253,16 @@
         if (entry.status === "published") {
           acts.push('<button class="btn" data-act="unpublish">Unpublish</button>');
         } else if (entry.is_legal && !entry.approved_by) {
-          acts.push('<button class="btn primary" data-act="approve">Approve &amp; publish</button>');
+          // Approving records the sign-off. Publishing is a separate decision.
+          acts.push('<button class="btn primary" data-act="approve">Approve</button>');
         } else {
-          acts.push('<button class="btn" data-act="publish">Publish</button>');
+          acts.push('<button class="btn primary" data-act="publish">Publish</button>');
         }
         acts.push('<button class="btn" data-act="history">History</button>');
       }
       acts.push('<button class="btn danger" data-act="delete">Delete</button>');
       parts.push(`<div class="acts">${acts.join("")}</div>`);
-      if (entry && entry.approved_by) parts.push(`<div class="hint">Approved by ${esc(entry.approved_by)} — not shown publicly.</div>`);
+      if (entry && entry.approved_by) parts.push(`<div class="hint">Approved by ${esc(entry.approved_by)}${entry.approved_at ? " on " + fmtDate(entry.approved_at) : ""} — not shown publicly.${entry.status !== "published" ? " Publish it when you're ready." : ""}</div>`);
     }
 
     parts.push('<div class="msg"></div><div class="hist"></div>');
@@ -364,7 +371,7 @@
           try {
             const target = act === "publish" ? "published" : "needs_review";
             const res = await adminFetch(`/admin/faq/${entry.id}/status?status=${target}`, { method: "POST" });
-            if (res.status === 409) { btn.disabled = false; return say("This is legal content — use Approve & publish so a name is recorded."); }
+            if (res.status === 409) { btn.disabled = false; return say("This is legal content and hasn't been approved — use Approve first, so a name is recorded."); }
             if (!res.ok) throw new Error();
             await reload();
           } catch (e) { btn.disabled = false; say("Could not change status."); }
@@ -404,8 +411,7 @@
       const s = await (await adminFetch("/admin/stats")).json();
       document.getElementById("cards").innerHTML = `
         <div class="card"><div class="num">${s.total_questions}</div><div class="label">Questions asked</div></div>
-        <div class="card"><div class="num">${s.escalation_rate}%</div><div class="label">Escalated to a human</div></div>
-        <div class="card amber"><div class="num">${s.open_review_count}</div><div class="label">Waiting on a human</div></div>
+        <div class="card amber"><div class="num">${s.open_review_count}</div><div class="label">Waiting on staff review</div></div>
         <div class="card"><div class="num">${s.satisfaction_pct == null ? "—" : s.satisfaction_pct + "%"}</div>
           <div class="label">Found the answer helpful (${s.total_votes || 0} vote${s.total_votes === 1 ? "" : "s"})</div></div>`;
     } catch (e) {}
