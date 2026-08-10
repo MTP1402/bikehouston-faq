@@ -5,180 +5,90 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BikeHouston FAQ — Admin</title>
 <style>
-  :root {
-    --bh-green: #2e7d32;
-    --bh-dark: #1b1b1b;
-    --bh-bg: #f6f7f5;
-    --bh-amber: #c97a24;
-  }
+  :root { --bh-green: #2e7d32; --bh-dark: #1b1b1b; --bh-bg: #f6f7f5; --bh-amber: #c97a24; }
   * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bh-bg);
-    margin: 0;
-    padding: 24px;
-    color: var(--bh-dark);
-  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bh-bg); margin: 0; padding: 24px; color: var(--bh-dark); }
   .wrap { max-width: 900px; margin: 0 auto; }
   h1 { font-size: 1.5rem; margin-bottom: 2px; }
   .links { font-size: 0.85rem; margin-bottom: 14px; }
   .links a { color: var(--bh-green); text-decoration: none; margin-right: 14px; }
   .links a:hover { text-decoration: underline; }
-  .warning {
-    background: #fff4e5;
-    border: 1px solid #f0c987;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 0.85rem;
-    margin-bottom: 24px;
-    color: #7a4e00;
-  }
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
-    margin-bottom: 32px;
-  }
-  .card {
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 16px;
-  }
-  .card .num { font-size: 1.7rem; font-weight: 700; color: var(--bh-dark); }
+  .warning { background: #fff4e5; border: 1px solid #f0c987; border-radius: 8px;
+    padding: 10px 14px; font-size: 0.85rem; margin-bottom: 24px; color: #7a4e00; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .card { background: white; border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; }
+  .card .num { font-size: 1.7rem; font-weight: 700; }
   .card .label { font-size: 0.8rem; color: #666; margin-top: 4px; }
   .card.amber .num { color: var(--bh-amber); }
-  section { margin-bottom: 32px; }
   h2 { font-size: 1.1rem; margin-bottom: 10px; }
-  .empty { color: #888; font-style: italic; font-size: 0.9rem; }
-  .review-item {
-    background: #fffaf3;
-    border: 1px solid #f0c987;
-    border-radius: 8px;
-    padding: 12px 14px;
-    margin-bottom: 10px;
-  }
-  .review-item .q { font-weight: 600; margin-bottom: 4px; }
-  .review-item .meta { font-size: 0.8rem; color: #777; margin-bottom: 10px; }
-  .review-item textarea {
-    width: 100%;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-    padding: 8px 10px;
-    font-size: 0.9rem;
-    font-family: inherit;
-    resize: vertical;
-    margin-bottom: 8px;
-  }
-  .resolve-row { display: flex; gap: 8px; align-items: center; }
-  .resolve-row input[type=text] {
-    flex: 1;
-    max-width: 200px;
-    padding: 7px 10px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-    font-size: 0.85rem;
-  }
-  .review-item button {
-    background: var(--bh-green);
-    color: white;
-    border: none;
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-  .review-item button:disabled { opacity: 0.5; cursor: default; }
-  .review-item .err { color: #b3261e; font-size: 0.8rem; margin-top: 6px; display: none; }
-  table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
-  th, td { text-align: left; padding: 8px 10px; font-size: 0.85rem; border-bottom: 1px solid #eee; }
-  th { background: #fafafa; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; color: #666; }
-  tr:last-child td { border-bottom: none; }
-  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
-  .tag.high { background: #e6f0e7; color: var(--bh-green); }
-  .tag.medium { background: #fff4e5; color: var(--bh-amber); }
-  .tag.low { background: #fde8e8; color: #b3261e; }
-  .tag.yes { background: #fff4e5; color: var(--bh-amber); }
-  .tag.no { background: #eee; color: #666; }
-  .q-row { cursor: pointer; }
-  .q-row:hover { background: #fafafa; }
-  .q-row td:first-child::before { content: "▸ "; color: #999; font-size: 0.75rem; }
-  .q-row.open td:first-child::before { content: "▾ "; }
-  .detail-row td { background: #f7faf7; color: #333; line-height: 1.5; white-space: pre-wrap; }
+  .empty { color: #888; font-style: italic; font-size: 0.9rem; padding: 14px; }
 
-  /* password gate */
-  #gate {
-    position: fixed; inset: 0; background: #f6f7f5;
-    display: flex; align-items: center; justify-content: center; z-index: 50;
-  }
-  #gate .box {
-    background: white; border: 1px solid #e0e0e0; border-radius: 12px;
-    padding: 28px; width: 100%; max-width: 380px;
-  }
-  #gate h2 { margin: 0 0 6px 0; font-size: 1.1rem; }
+  #gate { position: fixed; inset: 0; background: #f6f7f5; display: flex; align-items: center; justify-content: center; z-index: 50; }
+  #gate .box { background: white; border: 1px solid #e0e0e0; border-radius: 12px; padding: 28px; width: 100%; max-width: 380px; }
+  #gate h2 { margin: 0 0 6px 0; }
   #gate p { margin: 0 0 16px 0; color: #666; font-size: 0.88rem; line-height: 1.45; }
   #gate input { width: 100%; padding: 11px 13px; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; margin-bottom: 10px; }
-  #gate button { width: 100%; padding: 11px 0; }
+  #gate button { width: 100%; padding: 11px 0; background: var(--bh-green); color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
   #gate .err { color: #b3261e; font-size: 0.85rem; margin-top: 10px; display: none; }
   #main { display: none; }
 
-  .btn-sm {
-    background: white; border: 1px solid #ccc; color: #444;
-    border-radius: 6px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer;
-  }
-  .btn-sm:hover { border-color: var(--bh-green); color: var(--bh-green); }
-  .btn-sm:disabled { opacity: 0.55; cursor: default; }
-  .btn-sm.promoted { background: #e6f0e7; border-color: var(--bh-green); color: var(--bh-green); }
-  .btn-sm.blocked { background: #fdecea; border-color: #e0a2a2; color: #b3261e; }
-  .legal-warn {
-    background: #fdecea; border: 1px solid #e0a2a2; border-radius: 8px;
-    padding: 10px 12px; margin-top: 8px; font-size: 0.84rem; color: #7a2018;
-  }
-  .legal-warn .hd { font-weight: 700; margin-bottom: 6px; }
-  .legal-warn ul { margin: 6px 0 0 0; padding-left: 18px; }
-  .legal-warn li { margin-bottom: 3px; line-height: 1.4; }
-  .legal-warn code { background: #fff; padding: 1px 4px; border-radius: 3px; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .filters button { background: white; border: 1px solid #d7e5d9; color: #555;
+    border-radius: 999px; padding: 6px 14px; font-size: 0.84rem; cursor: pointer; }
+  .filters button:hover { border-color: var(--bh-green); color: var(--bh-green); }
+  .filters button.active { background: var(--bh-green); border-color: var(--bh-green); color: white; font-weight: 600; }
+  .filters .n { opacity: 0.75; font-size: 0.78rem; margin-left: 4px; }
 
-  .kb-item { border: 1px solid #e0e0e0; border-radius: 10px; padding: 14px; margin-bottom: 10px; background: white; }
-  .kb-item.unpub { background: #fbfbfb; border-style: dashed; }
-  .kb-item .q { font-weight: 600; margin-bottom: 4px; }
-  .kb-item .meta { font-size: 0.78rem; color: #888; margin-bottom: 8px; }
-  .kb-item .a { font-size: 0.9rem; color: #444; line-height: 1.5; white-space: pre-wrap; margin-bottom: 10px; }
-  .kb-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-  .pill { border-radius: 999px; padding: 2px 9px; font-size: 0.72rem; font-weight: 600; }
+  #searchBox { width: 100%; padding: 10px 13px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; margin-bottom: 12px; }
+
+  .row { background: white; border: 1px solid #e0e0e0; border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+  .row-head { padding: 12px 14px; cursor: pointer; }
+  .row-head:hover { background: #fafcfa; }
+  .row-q { font-weight: 600; font-size: 0.95rem; line-height: 1.4; margin-bottom: 5px; }
+  .row-meta { font-size: 0.76rem; color: #888; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pill { border-radius: 999px; padding: 2px 9px; font-size: 0.71rem; font-weight: 600; }
   .pill.pub { background: #e6f0e7; color: var(--bh-green); }
   .pill.hold { background: #fdecea; color: #b3261e; }
   .pill.legal { background: #fff4e5; color: #8a5a00; }
-  .kb-edit { margin-top: 10px; display: none; }
-  .kb-edit textarea {
-    width: 100%; min-height: 120px; padding: 10px; border: 1px solid #ccc;
-    border-radius: 8px; font-family: inherit; font-size: 0.9rem; line-height: 1.5;
-  }
-  .kb-edit input[type=text] { width: 100%; padding: 9px 11px; border: 1px solid #ccc; border-radius: 7px; margin-top: 8px; font-size: 0.9rem; }
-  .kb-edit .row { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
-  .kb-hint { font-size: 0.78rem; color: #8a5a00; margin-top: 6px; }
-  .hist { margin-top: 10px; font-size: 0.8rem; color: #666; display: none; }
-  .hist-row { padding: 6px 0; border-top: 1px solid #eee; }
+  .pill.needs { background: #fff4e5; color: #a15c00; }
+  .pill.notkb { background: #f0f0f0; color: #777; }
+  .pill.stale { background: #eef2fb; color: #3a5a9a; }
 
-  .email-line {
-    background: #fffaf2; border: 1px solid #f0c987; border-radius: 7px;
-    padding: 8px 10px; margin-bottom: 10px; font-size: 0.85rem;
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  }
-  .email-line code { font-size: 0.88rem; color: #5a4a2f; }
-  .no-email { font-size: 0.82rem; color: #888; margin-bottom: 10px; }
-  .sent-badge { background: #e6f0e7; color: var(--bh-green); border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; font-weight: 600; }
-  .flag-item { border: 1px solid #f3c2c2; background: #fffafa; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
-  .flag-item .q { font-weight: 600; margin-bottom: 4px; }
-  .flag-item .votes { font-size: 0.8rem; color: #b3261e; margin-bottom: 8px; }
-  .flag-item .a { font-size: 0.9rem; color: #444; line-height: 1.5; white-space: pre-wrap; }
+  .row-body { display: none; padding: 0 14px 14px 14px; border-top: 1px solid #f0f0f0; }
+  .row.open .row-body { display: block; }
+  .ans { background: #f7faf7; border-radius: 8px; padding: 12px; font-size: 0.89rem;
+    line-height: 1.55; white-space: pre-wrap; margin: 12px 0; }
+  .ans.none { color: #999; font-style: italic; }
+  textarea { width: 100%; min-height: 150px; padding: 10px; border: 1px solid #ccc;
+    border-radius: 8px; font-family: inherit; font-size: 0.89rem; line-height: 1.55; margin: 12px 0 8px 0; }
+  .acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .btn { background: white; border: 1px solid #ccc; color: #444; border-radius: 6px;
+    padding: 6px 12px; font-size: 0.82rem; cursor: pointer; }
+  .btn:hover { border-color: var(--bh-green); color: var(--bh-green); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .btn.primary { background: var(--bh-green); border-color: var(--bh-green); color: white; }
+  .btn.danger:hover { border-color: #b3261e; color: #b3261e; }
+  .who { padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.82rem; max-width: 210px; }
+  .msg { font-size: 0.8rem; margin-top: 8px; }
+  .msg.err { color: #b3261e; }
+  .msg.ok { color: var(--bh-green); }
+  .legal-warn { background: #fdecea; border: 1px solid #e0a2a2; border-radius: 8px;
+    padding: 10px 12px; margin-top: 8px; font-size: 0.82rem; color: #7a2018; }
+  .legal-warn ul { margin: 6px 0 0 0; padding-left: 18px; }
+  .legal-warn code { background: #fff; padding: 1px 4px; border-radius: 3px; }
+  .email-line { background: #fffaf2; border: 1px solid #f0c987; border-radius: 7px;
+    padding: 8px 10px; margin: 10px 0; font-size: 0.83rem; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .hist { margin-top: 10px; font-size: 0.79rem; color: #666; display: none; }
+  .hist-row { padding: 6px 0; border-top: 1px solid #eee; }
+  .hint { font-size: 0.78rem; color: #8a5a00; margin-top: 6px; }
 </style>
 </head>
 <body>
 <div id="gate">
   <div class="box">
     <h2>BikeHouston FAQ — Admin</h2>
-    <p>Enter the shared admin password. (Single shared password, not per-user accounts — see the handoff notes.)</p>
+    <p>Enter the shared admin password.</p>
     <input type="password" id="gatePw" placeholder="Admin password" autocomplete="current-password" />
     <button id="gateBtn">Unlock</button>
     <div class="err" id="gateErr"></div>
@@ -186,520 +96,332 @@
 </div>
 
 <div class="wrap" id="main">
-  <h1>BikeHouston FAQ — Admin</h1>
-  <div class="links"><a href="index.html">Ask BikeHouston</a><a href="browse.html">Browse questions</a></div>
-  <div class="warning">Protected by a single shared password. Anyone with that password has full read/write access to the knowledge base — per-user accounts are deliberately left for whoever takes this over.</div>
+  <h1>FAQ Admin</h1>
+  <div class="links">
+    <a href="index.html">Ask page</a><a href="browse.html">Browse</a>
+  </div>
+  <div class="warning">Protected by a single shared password. Anyone with it has full read/write access to the knowledge base.</div>
 
   <div class="cards" id="cards"></div>
 
-  <section>
-    <h2>Needs a human answer</h2>
-    <div id="reviewList"><div class="empty">Loading…</div></div>
-  </section>
-
-  <section>
-    <h2>Knowledge base</h2>
-    <div id="kbList"><div class="empty">Loading…</div></div>
-  </section>
-
-  <section>
-    <h2>Needs a freshness check <span style="font-weight:400;color:#888;font-size:0.8rem;">(published, untouched for over a year)</span></h2>
-    <div id="staleList"><div class="empty">Loading…</div></div>
-  </section>
-
-  <section>
-    <h2>Flagged by readers <span style="font-weight:400;color:#888;font-size:0.8rem;">(a thumbs-down is the flag)</span></h2>
-    <div id="flaggedList"><div class="empty">Loading…</div></div>
-  </section>
-
-  <section>
-    <h2>Recent questions <span style="font-weight:400;color:#888;font-size:0.8rem;">(click a row to see the answer given)</span></h2>
-    <table>
-      <thead>
-        <tr><th>Question</th><th>Confidence</th><th>Escalated</th><th>Votes</th><th>Asked</th><th></th></tr>
-      </thead>
-      <tbody id="queriesBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
-    </table>
-  </section>
+  <h2>Questions</h2>
+  <input type="search" id="searchBox" placeholder="Search questions and answers…" />
+  <div class="filters" id="filters"></div>
+  <div id="list"><div class="empty">Loading…</div></div>
 </div>
 
 <script>
   const API_BASE = "https://web-production-b8927.up.railway.app";
-  let allQueries = [];
   let ADMIN_PW = sessionStorage.getItem("bh_admin_pw") || "";
+  let ROWS = [];
+  let FILTER = "all";
 
-  // Every admin call carries the shared password as a header.
   async function adminFetch(path, opts) {
     opts = opts || {};
     opts.headers = Object.assign({}, opts.headers || {}, { "X-Admin-Password": ADMIN_PW });
     const res = await fetch(API_BASE + path, opts);
-    if (res.status === 401) {
-      sessionStorage.removeItem("bh_admin_pw");
-      location.reload();
-      throw new Error("unauthorized");
-    }
+    if (res.status === 401) { sessionStorage.removeItem("bh_admin_pw"); location.reload(); throw new Error("unauthorized"); }
     return res;
   }
 
-  function copyToClipboard(text, btn) {
-    const done = () => {
-      const was = btn.textContent;
-      btn.textContent = "Copied";
-      btn.classList.add("promoted");
-      setTimeout(() => { btn.textContent = was; btn.classList.remove("promoted"); }, 1400);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done).catch(() => {});
-    } else {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand("copy"); done(); } catch (e) {}
-      document.body.removeChild(ta);
-    }
-  }
+  const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   function fmtDate(iso) {
+    if (!iso) return "—";
     const d = new Date(iso);
-    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    return isNaN(d) ? "—" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
-  function voteCell(q) {
-    const up = q.helpful_count || 0;
-    const down = q.unhelpful_count || 0;
-    if (!up && !down) return '<span style="color:#bbb;font-size:0.8rem;">—</span>';
-    const parts = [];
-    if (up) parts.push('<span style="color:#2e7d32;font-weight:600;">👍 ' + up + '</span>');
-    if (down) parts.push('<span style="color:#b3261e;font-weight:600;">👎 ' + down + '</span>');
-    return '<span style="font-size:0.82rem;">' + parts.join(" ") + '</span>';
+  function copyToClipboard(text, btn) {
+    const done = () => { const w = btn.textContent; btn.textContent = "Copied"; setTimeout(() => { btn.textContent = w; }, 1400); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(text).then(done).catch(() => {}); }
   }
 
-  function confidenceTag(score) {
-    if (score === null || score === undefined) return '<span class="tag low">low</span>';
-    if (score >= 0.45) return '<span class="tag high">high</span>';
-    if (score >= 0.22) return '<span class="tag medium">medium</span>';
-    return '<span class="tag low">low</span>';
+  // A row can match more than one filter — published and downvoted, for
+  // instance. These narrow the list; they don't partition it.
+  const FILTERS = [
+    ["all",       "All",           () => true],
+    ["needs",     "Needs review",  (r) => r.review_item_id != null],
+    ["published", "Published",     (r) => r.entry && r.entry.status === "published"],
+    ["held",      "Held",          (r) => r.entry && r.entry.status !== "published"],
+    ["notkb",     "Not in KB",     (r) => !r.entry && !r.review_item_id],
+    ["legal",     "Legal",         (r) => r.entry && r.entry.is_legal],
+    ["down",      "Downvoted",     (r) => (r.unhelpful_count || 0) > 0 || (r.entry && (r.entry.unhelpful_count || 0) > 0)],
+    ["stale",     "Stale",         (r) => r.stale],
+  ];
+
+  function visibleRows() {
+    const f = FILTERS.find((x) => x[0] === FILTER)[2];
+    const term = (document.getElementById("searchBox").value || "").trim().toLowerCase();
+    return ROWS.filter((r) => {
+      if (!f(r)) return false;
+      if (!term) return true;
+      return (r.question || "").toLowerCase().includes(term) || (r.answer || "").toLowerCase().includes(term);
+    });
   }
 
-  async function loadStats() {
-    const res = await adminFetch("/admin/stats");
-    const s = await res.json();
-    const cards = document.getElementById("cards");
-    cards.innerHTML = `
-      <div class="card">
-        <div class="num">${s.total_questions}</div>
-        <div class="label">Total questions asked</div>
-      </div>
-      <div class="card amber">
-        <div class="num">${s.escalated_count}</div>
-        <div class="label">Escalated to a human (${s.escalated_pct}%)</div>
-      </div>
-      <div class="card">
-        <div class="num">${s.confidence_breakdown.high} / ${s.confidence_breakdown.medium} / ${s.confidence_breakdown.low}</div>
-        <div class="label">High / medium / low confidence</div>
-      </div>
-      <div class="card amber">
-        <div class="num">${s.open_review_count}</div>
-        <div class="label">Still waiting on a human</div>
-      </div>
-      <div class="card">
-        <div class="num">${s.satisfaction_pct === null || s.satisfaction_pct === undefined ? "—" : s.satisfaction_pct + "%"}</div>
-        <div class="label">Found the answer helpful (${s.total_votes || 0} vote${s.total_votes === 1 ? "" : "s"})</div>
-      </div>
-    `;
+  function renderFilters() {
+    const el = document.getElementById("filters");
+    el.innerHTML = FILTERS.map(([key, label, fn]) =>
+      `<button data-f="${key}" class="${key === FILTER ? "active" : ""}">${label}<span class="n">${ROWS.filter(fn).length}</span></button>`
+    ).join("");
+    el.querySelectorAll("button").forEach((b) => {
+      b.addEventListener("click", () => { FILTER = b.getAttribute("data-f"); renderFilters(); renderList(); });
+    });
   }
 
-  async function loadQueries() {
-    const res = await adminFetch("/admin/queries?limit=100");
-    allQueries = await res.json();
-    const tbody = document.getElementById("queriesBody");
-    if (!allQueries.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty">No questions logged yet.</td></tr>';
-      return;
+  function statusPills(r) {
+    const p = [];
+    if (r.review_item_id != null) p.push('<span class="pill needs">needs review</span>');
+    if (r.entry) {
+      p.push(r.entry.status === "published"
+        ? '<span class="pill pub">published</span>'
+        : `<span class="pill hold">${esc(r.entry.status)}</span>`);
+      if (r.entry.is_legal) p.push('<span class="pill legal">legal content</span>');
+    } else if (r.review_item_id == null) {
+      p.push('<span class="pill notkb">not in KB</span>');
     }
-    tbody.innerHTML = allQueries.map((q, i) => `
-      <tr class="q-row" data-idx="${i}">
-        <td>${q.query_text}</td>
-        <td>${confidenceTag(q.match_score)}</td>
-        <td>${q.was_escalated ? '<span class="tag yes">Yes</span>' : '<span class="tag no">No</span>'}</td>
-        <td>${voteCell(q)}</td>
-        <td>${fmtDate(q.created_at)}</td>
-        <td>${(!q.was_escalated && q.ai_answer && !q.matched_entry_id)
-              ? `<button class="btn-sm promote" data-qid="${q.id}">Promote</button>`
-              : (q.matched_entry_id ? '<span style="font-size:0.75rem;color:#999;">in KB</span>' : "")}
-            <button class="btn-sm del" data-qid="${q.id}" title="Remove this question from the log">Delete</button></td>
-      </tr>
-      <tr class="detail-row" id="detail-${i}" style="display:none;">
-        <td colspan="6">${(q.ai_answer || "(no answer recorded)").replace(/</g, "&lt;")}</td>
-      </tr>
-    `).join("");
-
-    document.querySelectorAll(".promote").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        btn.disabled = true;
-        btn.textContent = "Promoting…";
-        try {
-          const res = await adminFetch(`/admin/promote/${btn.getAttribute("data-qid")}`, { method: "POST" });
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            const d = body.detail;
-            // 409 = the answer makes a legal claim. Show what tripped it and
-            // why, rather than a bare "Failed" the person has to guess at.
-            if (res.status === 409 && d && d.findings) {
-              btn.textContent = "Legal claim";
-              btn.classList.add("blocked");
-              const row = btn.closest("tr");
-              const warn = document.createElement("tr");
-              warn.innerHTML = '<td colspan="6"><div class="legal-warn">' +
-                '<div class="hd">Not promoted — this answer makes a legal claim</div>' +
-                '<div>' + (d.message || "") + '</div><ul>' +
-                d.findings.map((f) =>
-                  "<li><strong>" + f.kind + ":</strong> <code>" +
-                  String(f.match).replace(/</g, "&lt;") + "</code> — …" +
-                  String(f.context).replace(/</g, "&lt;") + "…</li>").join("") +
-                '</ul></div></td>';
-              row.parentNode.insertBefore(warn, row.nextSibling);
-              return;
-            }
-            btn.textContent = "Failed";
-            btn.title = (typeof d === "string" ? d : (d && d.message)) || "Could not promote.";
-            return;
-          }
-          btn.textContent = "Promoted";
-          btn.classList.add("promoted");
-        } catch (err) {
-          btn.textContent = "Failed";
-        }
-      });
-    });
-
-    document.querySelectorAll(".del").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (!confirm("Remove this question from the log? This does not affect any knowledge base entry it was promoted to.")) return;
-        btn.disabled = true;
-        try {
-          const r = await adminFetch(`/admin/queries/${btn.getAttribute("data-qid")}`, { method: "DELETE" });
-          if (!r.ok) throw new Error("failed");
-          const row = btn.closest("tr");
-          const detail = row.nextElementSibling;
-          if (detail && detail.classList.contains("detail-row")) detail.remove();
-          row.remove();
-        } catch (err) { btn.disabled = false; btn.textContent = "Failed"; }
-      });
-    });
-
-    document.querySelectorAll(".q-row").forEach((row) => {
-      row.addEventListener("click", () => {
-        const idx = row.getAttribute("data-idx");
-        const detail = document.getElementById("detail-" + idx);
-        const isOpen = detail.style.display !== "none";
-        detail.style.display = isOpen ? "none" : "table-row";
-        row.classList.toggle("open", !isOpen);
-      });
-    });
+    if (r.stale) p.push('<span class="pill stale">over a year old</span>');
+    return p.join(" ");
   }
 
-  async function loadReviewQueue() {
-    const res = await adminFetch("/admin/review-queue?status=open");
-    const items = await res.json();
-    const list = document.getElementById("reviewList");
-    if (!items.length) {
-      list.innerHTML = '<div class="empty">Nothing waiting — all caught up.</div>';
-      return;
-    }
+  function renderList() {
+    const list = document.getElementById("list");
+    const rows = visibleRows();
+    if (!rows.length) { list.innerHTML = '<div class="empty">Nothing here.</div>'; return; }
     list.innerHTML = "";
-    items.forEach((item) => {
-      const match = allQueries.find((q) => q.id === item.related_query_id);
-      const questionText = match ? match.query_text : "(question text not available)";
-      const askerEmail = match && match.asker_email ? match.asker_email : null;
-      const div = document.createElement("div");
-      div.className = "review-item";
-      div.innerHTML = `
-        <div class="q">${questionText}</div>
-        <div class="meta">Reason: ${item.reason} · Flagged ${fmtDate(item.flagged_at)}</div>
-        ${askerEmail
-          ? `<div class="email-line">Wants a reply at <code>${askerEmail.replace(/</g, "&lt;")}</code>
-               <button class="btn-sm copy-email" type="button">Copy address</button></div>`
-          : '<div class="no-email">No email left — this one just gets published on the site.</div>'}
-        <textarea rows="3" placeholder="Type the real answer here…"></textarea>
-        <div class="resolve-row">
-          <input type="text" placeholder="Your name" />
-          <button>Mark resolved</button>
-        </div>
-        <div class="err">Please enter your name and an answer first.</div>
-      `;
-      const btn = div.querySelector("button");
-      const nameInput = div.querySelector('input[type="text"]');
-      const answerInput = div.querySelector("textarea");
-      const err = div.querySelector(".err");
-      const copyEmailBtn = div.querySelector(".copy-email");
-      if (copyEmailBtn) {
-        copyEmailBtn.addEventListener("click", () => copyToClipboard(askerEmail, copyEmailBtn));
-      }
-      btn.addEventListener("click", async () => {
-        const name = nameInput.value.trim();
-        const answer = answerInput.value.trim();
-        if (!name || !answer) {
-          err.style.display = "block";
-          return;
-        }
-        err.style.display = "none";
-        btn.disabled = true;
-        btn.textContent = "Resolving…";
-        await adminFetch(`/admin/review-queue/${item.id}/resolve`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ resolved_by: name, answer: answer }),
-        });
-        renderSendStep(div, item, questionText, answer);
-        loadStats();
-      });
-      list.appendChild(div);
-    });
+    rows.forEach((r) => list.appendChild(renderRow(r)));
   }
 
-  // After the answer is saved, hand the human what they need to send it
-  // themselves. Nothing is emailed automatically — deliberate, at this volume.
-  function renderSendStep(div, item, questionText, answer) {
-    const match = allQueries.find((q) => q.id === item.related_query_id);
-    const askerEmail = match && match.asker_email ? match.asker_email : null;
-
-    if (!askerEmail) {
-      div.innerHTML = '<div class="q">' + questionText + '</div>' +
-        '<div class="meta">Answered — now published on the site. No email was requested.</div>';
-      return;
-    }
-
-    div.innerHTML = [
-      '<div class="q">', questionText, '</div>',
-      '<div class="meta">Answered. Copy the pieces below into an email and send it from info@bikehouston.org.</div>',
-      '<div class="email-line">To: <code>', askerEmail.replace(/</g, "&lt;"), '</code>',
-      '<button class="btn-sm" data-copy="email" type="button">Copy address</button>',
-      '<button class="btn-sm" data-copy="body" type="button">Copy answer</button></div>',
-      '<div class="resolve-row"><button data-act="sent" type="button">Mark reply sent</button></div>'
-    ].join("");
-
-    const body = [
-      "Hi,",
-      "",
-      "Thanks for your question through the BikeHouston FAQ:",
-      "",
-      '"' + questionText + '"',
-      "",
-      answer,
-      "",
-      "If you have any follow-up questions, just reply to this email.",
-      "",
-      "— BikeHouston",
-      "info@bikehouston.org · 832-304-4666"
-    ].join("\n");
-
-    div.querySelectorAll("[data-copy]").forEach((b) => {
-      b.addEventListener("click", () => {
-        copyToClipboard(b.getAttribute("data-copy") === "email" ? askerEmail : body, b);
-      });
-    });
-
-    const sentBtn = div.querySelector('[data-act="sent"]');
-    sentBtn.addEventListener("click", async () => {
-      sentBtn.disabled = true;
-      sentBtn.textContent = "Saving…";
-      try {
-        await adminFetch(`/admin/review-queue/${item.id}/sent`, { method: "POST" });
-        div.innerHTML = '<div class="q">' + questionText + '</div>' +
-          '<div class="meta"><span class="sent-badge">Reply sent</span> to ' +
-          askerEmail.replace(/</g, "&lt;") + '</div>';
-      } catch (e) {
-        sentBtn.disabled = false;
-        sentBtn.textContent = "Mark reply sent";
-      }
-    });
-  }
-
-  async function loadFlagged() {
-    const list = document.getElementById("flaggedList");
-    try {
-      const res = await adminFetch("/admin/flagged");
-      const items = await res.json();
-      if (!items.length) {
-        list.innerHTML = '<div class="empty">Nothing flagged — no thumbs-down yet.</div>';
-        return;
-      }
-      list.innerHTML = items.map((it) => `
-        <div class="flag-item">
-          <div class="q">${it.question}</div>
-          <div class="votes">👎 ${it.unhelpful_count} · 👍 ${it.helpful_count}</div>
-          <div class="a">${(it.answer || "").replace(/</g, "&lt;")}</div>
-        </div>
-      `).join("");
-    } catch (e) {
-      list.innerHTML = '<div class="empty">Could not load flagged answers.</div>';
-    }
-  }
-
-  function fmtEntryDate(iso) {
-    if (!iso) return "unknown";
-    const d = new Date(iso);
-    if (isNaN(d)) return "unknown";
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
-  }
-
-  async function loadKB() {
-    const wrap = document.getElementById("kbList");
-    try {
-      const res = await adminFetch("/admin/faq/all");
-      const items = await res.json();
-      if (!items.length) {
-        wrap.innerHTML = '<div class="empty">No knowledge base entries yet.</div>';
-        return;
-      }
-      wrap.innerHTML = "";
-      items.forEach((it) => wrap.appendChild(renderKBItem(it)));
-    } catch (e) {
-      wrap.innerHTML = '<div class="empty">Could not load the knowledge base.</div>';
-    }
-  }
-
-  function renderKBItem(it) {
-    const published = it.status === "published";
+  function renderRow(r) {
     const div = document.createElement("div");
-    div.className = "kb-item" + (published ? "" : " unpub");
+    div.className = "row";
 
-    const pills = [
-      '<span class="pill ' + (published ? "pub" : "hold") + '">' + it.status + "</span>",
-      it.is_legal ? '<span class="pill legal">legal content</span>' : "",
-    ].join(" ");
+    const up = (r.entry ? r.entry.helpful_count : 0) + (r.helpful_count || 0);
+    const down = (r.entry ? r.entry.unhelpful_count : 0) + (r.unhelpful_count || 0);
+    const votes = (up || down) ? ` · 👍 ${up} 👎 ${down}` : "";
+    const dated = r.entry && r.entry.last_updated ? r.entry.last_updated : r.asked_at;
 
-    div.innerHTML = [
-      '<div class="q">' + String(it.question).replace(/</g, "&lt;") + "</div>",
-      '<div class="meta">', pills,
-      " · id ", it.id,
-      " · last updated ", fmtEntryDate(it.last_updated),
-      it.approved_by ? " · approved by " + String(it.approved_by).replace(/</g, "&lt;") : "",
-      "</div>",
-      '<div class="a">' + String(it.answer || "").replace(/</g, "&lt;") + "</div>",
-      '<div class="kb-actions">',
-      '<button class="btn-sm" data-act="edit">Edit</button>',
-      published
-        ? '<button class="btn-sm" data-act="unpublish">Unpublish</button>'
-        : (it.is_legal
-            ? '<button class="btn-sm" data-act="approve">Approve &amp; publish</button>'
-            : '<button class="btn-sm" data-act="publish">Publish</button>'),
-      '<button class="btn-sm" data-act="history">History</button>',
-      "</div>",
-      '<div class="kb-edit">',
-      '<textarea></textarea>',
-      '<input type="text" class="who" placeholder="Your name (recorded with the edit)" />',
-      it.is_legal ? '<div class="kb-hint">This entry contains legal content. Editing it clears any approval and takes it off the public site until someone signs off again.</div>' : "",
-      '<div class="row"><button class="btn-sm" data-act="save">Save</button>',
-      '<button class="btn-sm" data-act="cancel">Cancel</button>',
-      '<span class="err" style="color:#b3261e;font-size:0.8rem;"></span></div>',
-      "</div>",
-      '<div class="hist"></div>'
-    ].join("");
+    div.innerHTML = `
+      <div class="row-head">
+        <div class="row-q">${esc(r.question)}</div>
+        <div class="row-meta">${statusPills(r)}<span>#${r.id} · ${fmtDate(dated)}${votes}</span></div>
+      </div>
+      <div class="row-body"></div>`;
 
-    const editBox = div.querySelector(".kb-edit");
-    const ta = div.querySelector("textarea");
-    const who = div.querySelector(".who");
-    const err = div.querySelector(".err");
-    const hist = div.querySelector(".hist");
+    div.querySelector(".row-head").addEventListener("click", () => {
+      const open = div.classList.toggle("open");
+      if (open && !div.querySelector(".row-body").dataset.built) buildBody(div, r);
+    });
+    return div;
+  }
 
-    div.querySelectorAll("[data-act]").forEach((b) => {
-      b.addEventListener("click", async () => {
-        const act = b.getAttribute("data-act");
+  function buildBody(div, r) {
+    const body = div.querySelector(".row-body");
+    body.dataset.built = "1";
+    const needsAnswer = r.review_item_id != null;
+    const entry = r.entry;
+
+    const parts = [];
+
+    if (needsAnswer) {
+      // Escalated: show the AI's draft in an editable box rather than blank,
+      // so whoever answers starts from something.
+      parts.push('<div class="hint">This was escalated. The draft below is AI-generated and unverified — check every factual and legal claim before saving.</div>');
+      parts.push(`<textarea class="draft">${esc(r.answer || "")}</textarea>`);
+      if (r.asker_email) {
+        parts.push(`<div class="email-line">Wants a reply at <code>${esc(r.asker_email)}</code>
+          <button class="btn copy-email">Copy address</button><button class="btn copy-answer">Copy answer</button></div>`);
+      }
+      parts.push(`<div class="acts">
+        <input class="who" type="text" placeholder="Your name" />
+        <button class="btn primary" data-act="resolve">Save answer</button>
+        <button class="btn danger" data-act="delete">Delete</button></div>`);
+    } else {
+      parts.push(`<div class="ans${r.answer ? "" : " none"}">${esc(r.answer || "(no answer recorded)")}</div>`);
+      parts.push('<textarea class="draft" style="display:none;"></textarea>');
+      const acts = [];
+      if (!entry && r.answer) acts.push('<button class="btn primary" data-act="promote">Promote to knowledge base</button>');
+      if (entry) {
+        acts.push('<button class="btn" data-act="edit">Edit</button>');
+        if (entry.status === "published") {
+          acts.push('<button class="btn" data-act="unpublish">Unpublish</button>');
+        } else if (entry.is_legal && !entry.approved_by) {
+          acts.push('<button class="btn primary" data-act="approve">Approve &amp; publish</button>');
+        } else {
+          acts.push('<button class="btn" data-act="publish">Publish</button>');
+        }
+        acts.push('<button class="btn" data-act="history">History</button>');
+      }
+      acts.push('<button class="btn danger" data-act="delete">Delete</button>');
+      parts.push(`<div class="acts">${acts.join("")}</div>`);
+      if (entry && entry.approved_by) parts.push(`<div class="hint">Approved by ${esc(entry.approved_by)} — not shown publicly.</div>`);
+    }
+
+    parts.push('<div class="msg"></div><div class="hist"></div>');
+    body.innerHTML = parts.join("");
+    wire(body, r, div);
+  }
+
+  function wire(body, r, rowDiv) {
+    const msg = body.querySelector(".msg");
+    const draft = body.querySelector(".draft");
+    const hist = body.querySelector(".hist");
+    const say = (t, ok) => { msg.textContent = t; msg.className = "msg " + (ok ? "ok" : "err"); };
+
+    const ce = body.querySelector(".copy-email");
+    if (ce) ce.addEventListener("click", () => copyToClipboard(r.asker_email, ce));
+    const ca = body.querySelector(".copy-answer");
+    if (ca) ca.addEventListener("click", () => copyToClipboard(draft.value, ca));
+
+    body.querySelectorAll("[data-act]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const act = btn.getAttribute("data-act");
+        const entry = r.entry;
 
         if (act === "edit") {
-          ta.value = it.answer || "";
-          editBox.style.display = "block";
-          ta.focus();
+          const view = body.querySelector(".ans");
+          draft.value = r.answer || "";
+          draft.style.display = "block";
+          if (view) view.style.display = "none";
+          btn.textContent = "Save edit";
+          btn.setAttribute("data-act", "saveedit");
+          if (!body.querySelector(".who")) {
+            const who = document.createElement("input");
+            who.className = "who"; who.type = "text"; who.placeholder = "Your name";
+            body.querySelector(".acts").prepend(who);
+          }
+          if (entry && entry.is_legal) say("Editing legal content clears its approval and unpublishes it until someone signs off again.", false);
           return;
         }
-        if (act === "cancel") { editBox.style.display = "none"; return; }
+
+        const whoEl = body.querySelector(".who");
+        const name = whoEl ? whoEl.value.trim() : "";
+
+        if (act === "saveedit") {
+          if (!name) return say("Your name is required — edits are recorded.");
+          if (!draft.value.trim()) return say("Answer can't be empty.");
+          btn.disabled = true;
+          try {
+            const q = new URLSearchParams({ editor_name: name, answer: draft.value });
+            const res = await adminFetch(`/admin/faq/${entry.id}?${q}`, { method: "PATCH" });
+            if (!res.ok) throw new Error();
+            await reload();
+          } catch (e) { btn.disabled = false; say("Could not save."); }
+          return;
+        }
+
+        if (act === "resolve") {
+          if (!name) return say("Your name is required.");
+          if (!draft.value.trim()) return say("Write an answer first.");
+          btn.disabled = true;
+          try {
+            const res = await adminFetch(`/admin/review-queue/${r.review_item_id}/resolve`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ resolved_by: name, answer: draft.value }),
+            });
+            if (!res.ok) throw new Error();
+            say("Saved. Promote it from this row if it should go on the site.", true);
+            await reload();
+          } catch (e) { btn.disabled = false; say("Could not save."); }
+          return;
+        }
+
+        if (act === "promote") {
+          btn.disabled = true;
+          try {
+            const res = await adminFetch(`/admin/promote/${r.id}`, { method: "POST" });
+            if (res.status === 409) {
+              const b = await res.json().catch(() => ({}));
+              const d = b.detail || {};
+              body.querySelector(".msg").innerHTML =
+                '<div class="legal-warn"><strong>Not promoted — this answer makes a legal claim.</strong><div>' +
+                esc(d.message || "") + "</div><ul>" +
+                (d.findings || []).map((f) => `<li>${esc(f.kind)}: <code>${esc(f.match)}</code></li>`).join("") +
+                "</ul></div>";
+              btn.disabled = false;
+              return;
+            }
+            if (!res.ok) throw new Error();
+            await reload();
+          } catch (e) { btn.disabled = false; say("Could not promote."); }
+          return;
+        }
+
+        if (act === "approve") {
+          const n = prompt("Your name — recorded with the approval, not shown publicly:");
+          if (!n || !n.trim()) return;
+          btn.disabled = true;
+          try {
+            await adminFetch(`/admin/faq/${entry.id}/approve?approver_name=${encodeURIComponent(n.trim())}`, { method: "POST" });
+            await reload();
+          } catch (e) { btn.disabled = false; say("Could not approve."); }
+          return;
+        }
+
+        if (act === "publish" || act === "unpublish") {
+          btn.disabled = true;
+          try {
+            const target = act === "publish" ? "published" : "needs_review";
+            const res = await adminFetch(`/admin/faq/${entry.id}/status?status=${target}`, { method: "POST" });
+            if (res.status === 409) { btn.disabled = false; return say("This is legal content — use Approve & publish so a name is recorded."); }
+            if (!res.ok) throw new Error();
+            await reload();
+          } catch (e) { btn.disabled = false; say("Could not change status."); }
+          return;
+        }
 
         if (act === "history") {
           if (hist.style.display === "block") { hist.style.display = "none"; return; }
-          hist.innerHTML = "Loading…";
           hist.style.display = "block";
+          hist.innerHTML = "Loading…";
           try {
-            const r = await adminFetch("/admin/faq/" + it.id + "/history");
-            const rows = await r.json();
+            const rows = await (await adminFetch(`/admin/faq/${entry.id}/history`)).json();
             hist.innerHTML = rows.length
-              ? rows.map((h) =>
-                  '<div class="hist-row"><strong>' + String(h.editor_name).replace(/</g, "&lt;") +
-                  "</strong> — " + h.action + " · " + fmtEntryDate(h.created_at) +
-                  (h.note ? "<br>" + String(h.note).replace(/</g, "&lt;") : "") + "</div>").join("")
+              ? rows.map((h) => `<div class="hist-row"><strong>${esc(h.editor_name)}</strong> — ${esc(h.action)} · ${fmtDate(h.created_at)}${h.note ? "<br>" + esc(h.note) : ""}</div>`).join("")
               : '<div class="hist-row">No recorded changes.</div>';
           } catch (e) { hist.innerHTML = "Could not load history."; }
           return;
         }
 
-        if (act === "save") {
-          const name = who.value.trim();
-          if (!name) { err.textContent = "Your name is required."; return; }
-          if (!ta.value.trim()) { err.textContent = "Answer can't be empty."; return; }
-          err.textContent = "";
-          b.disabled = true;
+        if (act === "delete") {
+          if (!confirm("Remove this question from the log? Any knowledge base entry it was promoted to stays published.")) return;
+          btn.disabled = true;
           try {
-            const q = new URLSearchParams({ editor_name: name, answer: ta.value });
-            const r = await adminFetch("/admin/faq/" + it.id + "?" + q.toString(), { method: "PATCH" });
-            if (!r.ok) throw new Error("failed");
-            await loadKB();
-          } catch (e) { b.disabled = false; err.textContent = "Could not save."; }
-          return;
-        }
-
-        if (act === "approve") {
-          const name = prompt("Your name — recorded with the approval, not shown publicly:");
-          if (!name || !name.trim()) return;
-          b.disabled = true;
-          try {
-            await adminFetch("/admin/faq/" + it.id + "/approve?approver_name=" + encodeURIComponent(name.trim()), { method: "POST" });
-            await loadKB();
-          } catch (e) { b.disabled = false; }
-          return;
-        }
-
-        if (act === "publish" || act === "unpublish") {
-          const target = act === "publish" ? "published" : "needs_review";
-          b.disabled = true;
-          try {
-            await adminFetch("/admin/faq/" + it.id + "/status?status=" + target, { method: "POST" });
-            await loadKB();
-          } catch (e) { b.disabled = false; }
+            const res = await adminFetch(`/admin/queries/${r.id}`, { method: "DELETE" });
+            if (!res.ok) throw new Error();
+            rowDiv.remove();
+            ROWS = ROWS.filter((x) => x.id !== r.id);
+            renderFilters();
+          } catch (e) { btn.disabled = false; say("Could not delete."); }
         }
       });
     });
-
-    return div;
   }
 
-  async function loadStale() {
-    const wrap = document.getElementById("staleList");
+  async function loadStats() {
     try {
-      const res = await adminFetch("/admin/stale?days=365");
-      const items = await res.json();
-      if (!items.length) {
-        wrap.innerHTML = '<div class="empty">Nothing older than a year.</div>';
-        return;
-      }
-      wrap.innerHTML = items.map((it) =>
-        '<div class="kb-item"><div class="q">' + String(it.question).replace(/</g, "&lt;") + "</div>" +
-        '<div class="meta">id ' + it.id + " · last updated " + fmtEntryDate(it.last_updated) +
-        " · " + it.days_old + " days ago" + (it.is_legal ? " · legal content" : "") + "</div></div>").join("");
-    } catch (e) {
-      wrap.innerHTML = '<div class="empty">Could not load.</div>';
-    }
+      const s = await (await adminFetch("/admin/stats")).json();
+      document.getElementById("cards").innerHTML = `
+        <div class="card"><div class="num">${s.total_questions}</div><div class="label">Questions asked</div></div>
+        <div class="card"><div class="num">${s.escalation_rate}%</div><div class="label">Escalated to a human</div></div>
+        <div class="card amber"><div class="num">${s.open_review_count}</div><div class="label">Waiting on a human</div></div>
+        <div class="card"><div class="num">${s.satisfaction_pct == null ? "—" : s.satisfaction_pct + "%"}</div>
+          <div class="label">Found the answer helpful (${s.total_votes || 0} vote${s.total_votes === 1 ? "" : "s"})</div></div>`;
+    } catch (e) {}
   }
 
-  async function init() {
-    await loadQueries();
-    await Promise.all([loadStats(), loadReviewQueue(), loadFlagged(), loadKB(), loadStale()]);
+  async function reload() {
+    ROWS = await (await adminFetch("/admin/questions?limit=500")).json();
+    renderFilters();
+    renderList();
+    loadStats();
   }
 
-  // ---- password gate ----
+  document.getElementById("searchBox").addEventListener("input", renderList);
+
+  async function init() { await reload(); }
+
   const gate = document.getElementById("gate");
   const gatePw = document.getElementById("gatePw");
   const gateBtn = document.getElementById("gateBtn");
@@ -710,22 +432,15 @@
     if (res.ok) return { ok: true };
     let detail = "Incorrect password.";
     try { detail = (await res.json()).detail || detail; } catch (e) {}
-    return { ok: false, detail: detail };
+    return { ok: false, detail };
   }
 
   async function unlock() {
     const pw = gatePw.value.trim();
     if (!pw) return;
-    gateBtn.disabled = true;
-    gateBtn.textContent = "Checking…";
-    const result = await tryUnlock(pw).catch(() => ({ ok: false, detail: "Could not reach the server." }));
-    if (!result.ok) {
-      gateErr.textContent = result.detail;
-      gateErr.style.display = "block";
-      gateBtn.disabled = false;
-      gateBtn.textContent = "Unlock";
-      return;
-    }
+    gateBtn.disabled = true; gateBtn.textContent = "Checking…";
+    const r = await tryUnlock(pw).catch(() => ({ ok: false, detail: "Could not reach the server." }));
+    if (!r.ok) { gateErr.textContent = r.detail; gateErr.style.display = "block"; gateBtn.disabled = false; gateBtn.textContent = "Unlock"; return; }
     ADMIN_PW = pw;
     sessionStorage.setItem("bh_admin_pw", pw);
     gate.style.display = "none";
@@ -741,10 +456,7 @@
       gate.style.display = "none";
       document.getElementById("main").style.display = "block";
       init();
-    } else {
-      sessionStorage.removeItem("bh_admin_pw");
-      gatePw.focus();
-    }
+    } else { sessionStorage.removeItem("bh_admin_pw"); gatePw.focus(); }
   })();
 </script>
 </body>

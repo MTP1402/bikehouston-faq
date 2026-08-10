@@ -969,3 +969,81 @@ def delete_query(query_id: int, db: Session = Depends(get_db)):
     db.delete(q)
     db.commit()
     return {"deleted": query_id, "review_items_removed": removed_review_items}
+
+
+@app.get("/admin/questions", dependencies=[Depends(require_admin)])
+def admin_questions(limit: int = 500, db: Session = Depends(get_db)):
+    """
+    One list: every question ever asked, joined to whatever knowledge base entry
+    it produced and to any open review-queue item.
+
+    Replaces the old split between "Recent questions", "Knowledge base", "Needs
+    a human answer" and "Flagged by readers", which showed the same questions in
+    up to three places at once. Status belongs on the row, not in the choice of
+    section.
+
+    Read-only. Does not modify anything, and deliberately leaves the existing
+    /admin/queries, /admin/faq/all, /admin/review-queue and /admin/flagged
+    endpoints alone so nothing already depending on them changes.
+    """
+    queries = (
+        db.query(models.UserQuery)
+        .order_by(desc(models.UserQuery.created_at))
+        .limit(limit)
+        .all()
+    )
+
+    entry_ids = {q.matched_entry_id for q in queries if q.matched_entry_id}
+    entries = {}
+    if entry_ids:
+        for e in db.query(models.FAQEntry).filter(models.FAQEntry.id.in_(entry_ids)).all():
+            entries[e.id] = e
+
+    query_ids = [q.id for q in queries]
+    open_reviews = {}
+    if query_ids:
+        for r in (
+            db.query(models.ReviewQueueItem)
+            .filter(
+                models.ReviewQueueItem.related_query_id.in_(query_ids),
+                models.ReviewQueueItem.status == "open",
+            )
+            .all()
+        ):
+            open_reviews[r.related_query_id] = r
+
+    now = datetime.now(timezone.utc)
+    out = []
+    for q in queries:
+        entry = entries.get(q.matched_entry_id) if q.matched_entry_id else None
+        review = open_reviews.get(q.id)
+
+        stale = False
+        if entry and entry.status == "published":
+            stamp = entry.last_verified_at or entry.updated_at or entry.created_at
+            if stamp and (now - stamp).days > 365:
+                stale = True
+
+        out.append({
+            "id": q.id,
+            "question": q.query_text,
+            "answer": q.ai_answer,
+            "asked_at": q.created_at.isoformat() if q.created_at else None,
+            "escalated": bool(q.was_escalated),
+            "match_score": q.match_score,
+            "helpful_count": q.helpful_count or 0,
+            "unhelpful_count": q.unhelpful_count or 0,
+            "asker_email": q.asker_email,
+            "review_item_id": review.id if review else None,
+            "entry": None if not entry else {
+                "id": entry.id,
+                "status": entry.status,
+                "is_legal": bool(entry.is_legal),
+                "approved_by": entry.approved_by,
+                "last_updated": _display_date(entry),
+                "helpful_count": entry.helpful_count or 0,
+                "unhelpful_count": entry.unhelpful_count or 0,
+            },
+            "stale": stale,
+        })
+    return out
