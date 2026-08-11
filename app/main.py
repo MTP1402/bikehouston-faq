@@ -1053,6 +1053,12 @@ def admin_questions(limit: int = 500, db: Session = Depends(get_db)):
             "matched_entry_id": matched_only.id if matched_only else None,
             "entry": None if not entry else {
                 "id": entry.id,
+                # The entry's own text. The row-level "answer" above is what was
+                # logged against the original question and never changes, so an
+                # admin editing a published entry was shown — and re-editing
+                # from — the pre-edit text while their correction sat live on
+                # the public site.
+                "answer": entry.answer,
                 "status": entry.status,
                 "is_legal": bool(entry.is_legal),
                 "approved_by": entry.approved_by,

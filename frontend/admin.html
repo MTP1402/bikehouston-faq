@@ -224,6 +224,9 @@
     body.dataset.built = "1";
     const needsAnswer = r.review_item_id != null;
     const entry = r.entry;
+    // Once a question has an entry, the entry's text is the live one — the
+    // logged answer is a historical record of what the asker was shown.
+    const currentText = (entry && entry.answer != null) ? entry.answer : (r.answer || "");
 
     const parts = [];
 
@@ -244,7 +247,7 @@
         <button class="btn primary" data-act="resolve">Save answer</button>
         <button class="btn danger" data-act="delete">Delete</button></div>`);
     } else {
-      parts.push(`<div class="ans${r.answer ? "" : " none"}">${esc(r.answer || "(no answer recorded)")}</div>`);
+      parts.push(`<div class="ans${currentText ? "" : " none"}">${esc(currentText || "(no answer recorded)")}</div>`);
       parts.push('<textarea class="draft" style="display:none;"></textarea>');
       const acts = [];
       if (!entry && r.answer) acts.push('<button class="btn primary" data-act="promote">Promote to knowledge base</button>');
@@ -288,7 +291,7 @@
 
         if (act === "edit") {
           const view = body.querySelector(".ans");
-          draft.value = r.answer || "";
+          draft.value = currentText;
           draft.style.display = "block";
           if (view) view.style.display = "none";
           btn.textContent = "Save edit";
@@ -412,8 +415,8 @@
       document.getElementById("cards").innerHTML = `
         <div class="card"><div class="num">${s.total_questions}</div><div class="label">Questions asked</div></div>
         <div class="card amber"><div class="num">${s.open_review_count}</div><div class="label">Waiting on staff review</div></div>
-        <div class="card"><div class="num">${s.satisfaction_pct == null ? "—" : s.satisfaction_pct + "%"}</div>
-          <div class="label">Found the answer helpful (${s.total_votes || 0} vote${s.total_votes === 1 ? "" : "s"})</div></div>`;
+        <div class="card"><div class="num" style="font-size:1.35rem;">${s.helpful_votes || 0} helpful &middot; ${s.unhelpful_votes || 0} not helpful</div>
+          <div class="label">Reader feedback on answers</div></div>`;
     } catch (e) {}
   }
 
