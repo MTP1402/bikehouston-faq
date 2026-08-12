@@ -1118,3 +1118,68 @@ def generate_review_drafts(limit: int = 50, overwrite: bool = False, db: Session
 
     db.commit()
     return {"generated": generated, "skipped": skipped, "failed": failed}
+
+
+@app.patch("/admin/queries/{query_id}", dependencies=[Depends(require_admin)])
+def edit_query_answer(
+    query_id: int,
+    editor_name: str,
+    answer: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Edit the answer recorded against a logged question.
+
+    PATCH /admin/faq/{id} only works on knowledge base entries, so a question
+    that was answered but never promoted had no way to be corrected — you could
+    only promote the flawed answer and fix it afterwards. This lets an answer be
+    cleaned up in the log first.
+
+    If the question has already been promoted, the knowledge base entry created
+    from it is updated too, so the two don't silently diverge.
+    """
+    if not (editor_name or "").strip():
+        raise HTTPException(status_code=400, detail="editor_name is required — edits are recorded.")
+    if not (answer or "").strip():
+        raise HTTPException(status_code=400, detail="Answer can't be empty.")
+
+    q = db.query(models.UserQuery).filter(models.UserQuery.id == query_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="not found")
+
+    q.ai_answer = answer
+
+    # Keep a promoted entry in step with its source question.
+    entry = None
+    if q.matched_entry_id:
+        candidate = db.query(models.FAQEntry).filter(models.FAQEntry.id == q.matched_entry_id).first()
+        if candidate and candidate.question_canonical == q.query_text:
+            entry = candidate
+
+    revoked = False
+    if entry:
+        previous = entry.answer
+        entry.answer = answer
+        entry.last_verified_at = datetime.now(timezone.utc)
+
+        if screen_for_legal_claims(answer):
+            entry.is_legal = True
+
+        note = "edited via the question log"
+        if entry.is_legal and entry.approved_by:
+            entry.approved_by = None
+            entry.approved_at = None
+            if entry.status == "published":
+                entry.status = "needs_review"
+            revoked = True
+            note += " — approval cleared, needs re-approval before republishing"
+
+        _log_edit(db, entry, editor_name, "edited", previous_answer=previous, note=note)
+
+    db.commit()
+    return {
+        "query_id": q.id,
+        "entry_id": entry.id if entry else None,
+        "approval_revoked": revoked,
+        "entry_status": entry.status if entry else None,
+    }
