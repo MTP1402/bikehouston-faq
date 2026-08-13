@@ -409,8 +409,15 @@ def admin_stats(db: Session = Depends(get_db)):
     # Customer satisfaction: of the people who bothered to vote, what share
     # said the answer helped? Deliberately counts votes, not questions —
     # most people never vote, and that's fine.
-    helpful_votes = db.query(func.coalesce(func.sum(models.UserQuery.helpful_count), 0)).scalar() or 0
-    unhelpful_votes = db.query(func.coalesce(func.sum(models.UserQuery.unhelpful_count), 0)).scalar() or 0
+    # Votes land in two places: the ask page records them against the logged
+    # query, the browse page against the knowledge base entry. Summing only
+    # user_queries meant every vote cast on the browse page was invisible here.
+    q_help = db.query(func.coalesce(func.sum(models.UserQuery.helpful_count), 0)).scalar() or 0
+    q_unhelp = db.query(func.coalesce(func.sum(models.UserQuery.unhelpful_count), 0)).scalar() or 0
+    e_help = db.query(func.coalesce(func.sum(models.FAQEntry.helpful_count), 0)).scalar() or 0
+    e_unhelp = db.query(func.coalesce(func.sum(models.FAQEntry.unhelpful_count), 0)).scalar() or 0
+    helpful_votes = q_help + e_help
+    unhelpful_votes = q_unhelp + e_unhelp
     total_votes = helpful_votes + unhelpful_votes
 
     return {
@@ -1016,6 +1023,13 @@ def admin_questions(limit: int = 500, db: Session = Depends(get_db)):
             open_reviews[r.related_query_id] = r
 
     now = datetime.now(timezone.utc)
+
+    def _stale(entry):
+        if not entry or entry.status != "published":
+            return False
+        stamp = entry.last_verified_at or entry.updated_at or entry.created_at
+        return bool(stamp and (now - stamp).days > 365)
+
     out = []
     for q in queries:
         # matched_entry_id is set by two different things: promotion (which
@@ -1030,11 +1044,7 @@ def admin_questions(limit: int = 500, db: Session = Depends(get_db)):
         matched_only = candidate if (candidate and entry is None) else None
         review = open_reviews.get(q.id)
 
-        stale = False
-        if entry and entry.status == "published":
-            stamp = entry.last_verified_at or entry.updated_at or entry.created_at
-            if stamp and (now - stamp).days > 365:
-                stale = True
+        stale = _stale(entry)
 
         out.append({
             "id": q.id,
@@ -1068,6 +1078,46 @@ def admin_questions(limit: int = 500, db: Session = Depends(get_db)):
                 "unhelpful_count": entry.unhelpful_count or 0,
             },
             "stale": stale,
+        })
+
+    # Deleting a logged question deliberately leaves any entry promoted from it
+    # published — but that entry then had no row here, so it was live on the
+    # public site, votable, and unreachable from this page. Anything with no
+    # surviving query row is listed on its own so nothing can hide.
+    shown_entry_ids = {r["entry"]["id"] for r in out if r["entry"]}
+    orphans = (
+        db.query(models.FAQEntry)
+        .filter(models.FAQEntry.id.notin_(shown_entry_ids) if shown_entry_ids else True)
+        .order_by(desc(models.FAQEntry.id))
+        .all()
+    )
+    for e in orphans:
+        out.append({
+            "id": None,
+            "question": e.question_canonical,
+            "answer": e.answer,
+            "asked_at": e.created_at.isoformat() if e.created_at else None,
+            "escalated": False,
+            "match_score": None,
+            "helpful_count": 0,
+            "unhelpful_count": 0,
+            "asker_email": None,
+            "review_item_id": None,
+            "review_draft": None,
+            "matched_entry_id": None,
+            "orphan": True,
+            "entry": {
+                "id": e.id,
+                "answer": e.answer,
+                "status": e.status,
+                "is_legal": bool(e.is_legal),
+                "approved_by": e.approved_by,
+                "approved_at": e.approved_at.isoformat() if e.approved_at else None,
+                "last_updated": _display_date(e),
+                "helpful_count": e.helpful_count or 0,
+                "unhelpful_count": e.unhelpful_count or 0,
+            },
+            "stale": _stale(e),
         })
     return out
 

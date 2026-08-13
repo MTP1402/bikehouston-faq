@@ -146,6 +146,7 @@
     ["published", "Published",     (r) => r.entry && r.entry.status === "published"],
     ["held",      "Held",          (r) => r.entry && r.entry.status !== "published"],
     ["notkb",     "Not in KB",     (r) => !r.entry && !r.review_item_id],
+    ["orphan",    "No question record", (r) => !!r.orphan],
     ["legal",     "Legal",         (r) => r.entry && r.entry.is_legal],
     ["down",      "Downvoted",     (r) => (r.unhelpful_count || 0) > 0 || (r.entry && (r.entry.unhelpful_count || 0) > 0)],
     ["stale",     "Stale",         (r) => r.stale],
@@ -185,6 +186,7 @@
       p.push('<span class="pill notkb">not in KB</span>');
     }
     if (r.stale) p.push('<span class="pill stale">over a year old</span>');
+    if (r.orphan) p.push('<span class="pill notkb">no question record</span>');
     return p.join(" ");
   }
 
@@ -208,7 +210,7 @@
     div.innerHTML = `
       <div class="row-head">
         <div class="row-q">${esc(r.question)}</div>
-        <div class="row-meta">${statusPills(r)}<span>#${r.id} · ${fmtDate(dated)}${votes}</span></div>
+        <div class="row-meta">${statusPills(r)}<span>${r.id != null ? "#" + r.id : "KB " + (r.entry ? r.entry.id : "?")} · ${fmtDate(dated)}${votes}</span></div>
       </div>
       <div class="row-body"></div>`;
 
@@ -253,7 +255,7 @@
       // Every row is editable, whatever state it's in — corrections tend to
       // arrive long after an answer was written.
       const acts = ['<button class="btn" data-act="edit">Edit</button>'];
-      if (!entry && r.answer) acts.push('<button class="btn primary" data-act="promote">Promote to knowledge base</button>');
+      if (!entry && r.answer && r.id != null) acts.push('<button class="btn primary" data-act="promote">Promote to knowledge base</button>');
       if (entry) {
         if (entry.status === "published") {
           acts.push('<button class="btn" data-act="unpublish">Unpublish</button>');
@@ -265,7 +267,7 @@
         }
       }
       acts.push('<button class="btn" data-act="history">History</button>');
-      acts.push('<button class="btn danger" data-act="delete">Delete</button>');
+      if (r.id != null) acts.push('<button class="btn danger" data-act="delete">Delete</button>');
       parts.push(`<div class="acts">${acts.join("")}</div>`);
       if (entry && entry.approved_by) parts.push(`<div class="hint">Approved by ${esc(entry.approved_by)}${entry.approved_at ? " on " + fmtDate(entry.approved_at) : ""} — not shown publicly.${entry.status !== "published" ? " Publish it when you're ready." : ""}</div>`);
     }
@@ -322,6 +324,7 @@
             const q = new URLSearchParams({ editor_name: name, answer: draft.value });
             // With an entry, edit the entry. Without one, edit the logged
             // answer — which also keeps a promoted entry in step if there is one.
+            if (!entry && r.id == null) { btn.disabled = false; return say("Nothing to save to."); }
             const path = entry ? `/admin/faq/${entry.id}?${q}` : `/admin/queries/${r.id}?${q}`;
             const res = await adminFetch(path, { method: "PATCH" });
             if (!res.ok) throw new Error();
